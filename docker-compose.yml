@@ -203,6 +203,7 @@ services:
     stop_grace_period: 1m
     volumes:
       - ~/volumes/.lnd:/root/.lnd:ro
+      - ./banned_users.txt:/app/banned_users.txt:ro
     ports:
       - "3001:3001"
   web:
