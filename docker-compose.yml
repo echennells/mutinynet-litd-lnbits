@@ -204,6 +204,7 @@ services:
     volumes:
       - ~/volumes/.lnd:/root/.lnd:ro
       - ./banned_users.txt:/app/banned_users.txt:ro
+      - ./banned_domains.txt:/app/banned_domains.txt:ro
     ports:
       - "3001:3001"
   web:
