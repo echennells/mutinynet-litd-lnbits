@@ -9,6 +9,10 @@ server {
 		proxy_pass http://127.0.0.1:3001;
 	}
 
+	location /auth/ {
+		proxy_pass http://127.0.0.1:3001;
+	}
+
 	location /api/ {
 
         # rate limits for faucet POST

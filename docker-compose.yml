@@ -188,6 +188,9 @@ services:
       BITCOIN_RPC_USER: "bitcoin"
       BITCOIN_RPC_PASSWORD: $RPCPASSWORD
       NSEC: $NSEC
+      JWT_SECRET: $JWT_SECRET
+      GITHUB_CLIENT_ID: $GITHUB_CLIENT_ID
+      GITHUB_CLIENT_SECRET: $GITHUB_CLIENT_SECRET
       NETWORK: "signet"
       HOST: "https://faucet.mutinynet.com"
       GRPC_PORT: "10009"
