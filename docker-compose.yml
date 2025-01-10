@@ -206,6 +206,28 @@ services:
       - ./faucet_config:/app/faucet_config:ro
     ports:
       - "3001:3001"
+  lnurl_server:
+    container_name: "lnurl_server"
+    image: ghcr.io/benthecarman/lnurl-server:master
+    environment:
+      RUST_LOG: "info"
+      LNURL_DATA_DIR: "/root/.lnurl"
+      LNURL_PORT: "3002"
+      LNURL_LND_HOST: "lnd"
+      LNURL_LND_PORT: "10009"
+      LNURL_LND_CERT_PATH: "/root/.lnd/tls.cert"
+      LNURL_LND_MACAROON_PATH: "/root/.lnd/data/chain/bitcoin/signet/admin.macaroon"
+      LNURL_NETWORK: "signet"
+      LNURL_DOMAIN: "lnurl.mutinynet.com"
+    user: "0:1000"
+    logging: *default-logging
+    restart: always
+    stop_grace_period: 1m
+    volumes:
+      - ~/volumes/.lnd:/root/.lnd:ro
+      - ~/volumes/lnurl:/root/.lnurl
+    ports:
+      - "3002:3002"
   web:
     container_name: "mempool_frontend"
     environment:
