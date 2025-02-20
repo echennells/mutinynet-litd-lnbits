@@ -51,9 +51,11 @@ services:
         lnd-mode=integrated
         uipassword=your_secure_password
         httpslisten=0.0.0.0:8443
+        autopilot.disable=true
         lnd.rpclisten=0.0.0.0:10009
         lnd.restlisten=0.0.0.0:8080
         lnd.tlsextradomain=lit
+        lnd.tlsextradomain=mutinyd-a
         lnd.bitcoin.active=1
         lnd.bitcoin.node=bitcoind
         lnd.bitcoin.signet=1
@@ -63,12 +65,24 @@ services:
         lnd.bitcoind.zmqpubrawblock=tcp://bitcoind:28332
         lnd.bitcoind.zmqpubrawtx=tcp://bitcoind:28333
         lnd.rpcmiddleware.enable=true
-        autopilot.disable=true
+        lnd.wallet-unlock-password-file=/root/.lnd/password.txt
+        lnd.listen=0.0.0.0:9735
+        lnd.externalip=${EXTERNAL_IP}:9735
         taproot-assets-mode=integrated
         taproot-assets.network=signet
         taproot-assets.rpclisten=0.0.0.0:10029
         taproot-assets.lnd.host=localhost:10029
-        lnd.wallet-unlock-password-file=/root/.lnd/password.txt
+        taproot-assets.universe.public-access=r
+        # Taproot Assets Lightning config
+        lnd.protocol.option-scid-alias=true
+        lnd.protocol.zero-conf=true
+        lnd.protocol.simple-taproot-chans=true
+        lnd.protocol.simple-taproot-overlay-chans=true
+        lnd.protocol.custom-message=17
+        lnd.accept-keysend=true
+        # Mock price oracle settings for RFQ
+        taproot-assets.experimental.rfq.priceoracleaddress=use_mock_price_oracle_service_promise_to_not_use_on_mainnet
+        taproot-assets.experimental.rfq.mockoracleassetsperbtc=100000
     entrypoint: >
       sh -c "echo \"$$LIT_CONFIG\" > /root/.lit/lit.conf && litd"
     ports:
