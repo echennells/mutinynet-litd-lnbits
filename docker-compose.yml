@@ -94,11 +94,16 @@ services:
 
   lnbits:
     container_name: "lnbits"
-    image: lnbitsdocker/lnbits-legend:latest
+    build:
+      context: /home/ubuntu/lnbits
+      dockerfile: Dockerfile
     volumes:
       - ~/volumes/.lnd:/root/.lnd:ro
+      - ~/volumes/.tapd:/root/.tapd:ro
     entrypoint: >
-      sh -c "poetry run lnbits --port 5000 --host 0.0.0.0"
+      sh -c "cd /app &&
+      echo 'Starting LNbits service...' &&
+      poetry run lnbits --port 5000 --host 0.0.0.0"
     environment:
       - LNBITS_BACKEND_WALLET_CLASS=LndRestWallet
       - LND_REST_ENDPOINT=https://lit:8080
@@ -106,9 +111,11 @@ services:
       - LND_REST_MACAROON=/root/.lnd/data/chain/bitcoin/signet/admin.macaroon
       - LNBITS_NETWORK=signet
       - LNBITS_SITE_TITLE=MutinyNet LNBits
-      - LNBITS_RESERVE_FEE_MIN=100
-      - LNBITS_RESERVE_FEE_PERCENT=1.0
       - LNBITS_BASEURL=http://127.0.0.1:5000
+      - TAPD_HOST=lit:10009
+      - TAPD_NETWORK=signet
+      - TAPD_TLS_CERT_PATH=/root/.lnd/tls.cert
+      - TAPD_MACAROON_PATH=/root/.tapd/data/mainnet/admin.macaroon
     ports:
       - "5000:5000"
     depends_on:
