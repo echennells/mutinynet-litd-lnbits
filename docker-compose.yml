@@ -6,23 +6,18 @@ x-logging:
     max-file: "3"
 services:
   bitcoind:
-    container_name: "bitcoind"
-    build: .
-    user: "0:1000"
-    logging: *default-logging
-    restart: always
-    stop_grace_period: 1m
+    image: bitcoin/bitcoin:latest
+    container_name: bitcoin
+    restart: unless-stopped
     volumes:
-      - ~/volumes/.bitcoin:/root/.bitcoin
-    environment:
-      RPCPASSWORD: $RPCPASSWORD
+      - ./bitcoin-data:/home/bitcoin/.bitcoin
+      - ./bitcoin.conf:/home/bitcoin/.bitcoin/bitcoin.conf
     ports:
+      - "38333:38333"
+      - "38332:38332"
       - "28332:28332"
       - "28333:28333"
       - "28334:28334"
-      - "38332:38332"
-      - "38333:38333"
-      - "38334:38334"
 
   lit-init:
     container_name: "lit-init"
@@ -71,7 +66,11 @@ services:
         taproot-assets.network=signet
         taproot-assets.rpclisten=0.0.0.0:10029
         taproot-assets.lnd.host=localhost:10029
-        taproot-assets.universe.public-access=r
+        taproot-assets.universe.federationserver=universe.signet.laisee.org:8443
+        taproot-assets.universe.no-default-federation=true
+        taproot-assets.universe.sync-all-assets=true
+        taproot-assets.universe.public-access=rw
+        taproot-assets.proofcourieraddr=universerpc://universe.signet.laisee.org:8443
         # Taproot Assets Lightning config
         lnd.protocol.option-scid-alias=true
         lnd.protocol.zero-conf=true
@@ -107,17 +106,14 @@ services:
       - LNBITS_BACKEND_WALLET_CLASS=LndRestWallet
       - LND_REST_ENDPOINT=https://lit:8080
       - LND_REST_CERT=/root/.lnd/tls.cert
-        #- LND_REST_MACAROON=/root/.lnd/data/chain/bitcoin/signet/admin.macaroon
-      - LND_REST_MACAROON=/root/.lnd/data/chain/bitcoin/mainnet/admin.macaroon
-        #  - LNBITS_NETWORK=signet
-      - LNBITS_SITE_TITLE=MutinyNet LNBits
-        #- LNBITS_RESERVE_FEE_MIN=100
-        #- LNBITS_RESERVE_FEE_PERCENT=1.0
+      - LND_REST_MACAROON=/root/.lnd/data/chain/bitcoin/signet/admin.macaroon
+      - LNBITS_NETWORK=signet
+      - LNBITS_SITE_TITLE=Eric Signet
       - LNBITS_BASEURL=http://127.0.0.1:5000
       - TAPD_HOST=lit:10009
       - TAPD_NETWORK=signet
       - TAPD_TLS_CERT_PATH=/root/.lnd/tls.cert
-      - TAPD_MACAROON_PATH=/root/.tapd/data/mainnet/admin.macaroon
+      - TAPD_MACAROON_PATH=/root/.tapd/data/signet/admin.macaroon
     ports:
       - "5000:5000"
     depends_on:
