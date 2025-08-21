@@ -61,14 +61,11 @@ jobs:
           sleep 10
         done
     
-    - name: Setup SSH and start Bitcoin
+    - name: Setup SSH known hosts
       run: |
         # Add host to known_hosts
         ssh-keyscan -H ${{ env.DROPLET_IP }} >> ~/.ssh/known_hosts 2>/dev/null
-        
-        # Start Bitcoin container (using the id_rsa key we set up earlier)
-        echo "Starting Bitcoin container..."
-        ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose up -d bitcoind"
+        echo "SSH configured for ${{ env.DROPLET_IP }}"
     
     - name: Wait for Bitcoin to be ready
       run: |

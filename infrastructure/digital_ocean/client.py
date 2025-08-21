@@ -171,7 +171,33 @@ cp deploy/bitcoin.conf /mnt/mutinynet-volume/bitcoin/bitcoin.conf 2>/dev/null ||
 mkdir -p /mnt/mutinynet-volume/bitcoin
 ln -sf /mnt/mutinynet-volume/bitcoin ~/volumes/.bitcoin
 
-echo "Setup complete!"
+# Start Bitcoin container
+cd {REMOTE_WORKSPACE}
+docker-compose up -d bitcoind
+
+# Create systemd service to start Bitcoin on boot
+cat > /etc/systemd/system/bitcoin-mutinynet.service << 'EOF'
+[Unit]
+Description=Mutinynet Bitcoin Node
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={REMOTE_WORKSPACE}
+ExecStart=/usr/bin/docker-compose up -d bitcoind
+ExecStop=/usr/bin/docker-compose down
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable bitcoin-mutinynet.service
+
+echo "Setup complete! Bitcoin starting..."
 """
         
         droplet_name = f"mutinynet-bitcoin-{int(time.time())}"
