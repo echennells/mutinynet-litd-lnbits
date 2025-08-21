@@ -89,7 +89,8 @@ class MutinynetDeployer:
             # Install required packages
             "apt-get update",
             "which docker || curl -fsSL https://get.docker.com | sh",
-            "which docker-compose || apt-get install -y docker-compose",
+            # Install docker-compose (v2 as docker plugin)
+            "which docker-compose || (apt-get install -y curl && curl -SL https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose)",
             "apt-get install -y git curl wget jq",
         ]
         

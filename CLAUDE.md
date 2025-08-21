@@ -45,3 +45,6 @@ docker exec bitcoind bitcoin-cli -rpcuser=bitcoin -rpcpassword=bitcoin getblockc
 
 ### CI/CD
 GitHub Actions workflow available in `.github/workflows/ci.yml` for testing the stack.
+
+### GitHub Administration
+The `gh` CLI tool can be used to manage GitHub Actions, read workflow logs, and add repository secrets - useful for debugging CI/CD issues.
