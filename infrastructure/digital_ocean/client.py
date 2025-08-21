@@ -204,10 +204,18 @@ echo "Setup complete!"
     def wait_for_droplet_active(self, droplet_id: int, timeout: int = 300) -> bool:
         """Wait for droplet to become active"""
         start_time = time.time()
+        # Initial delay to let the API catch up
+        time.sleep(10)
+        
         while time.time() - start_time < timeout:
-            droplet = self._request("GET", f"droplets/{droplet_id}")["droplet"]
-            if droplet["status"] == "active":
-                return True
+            try:
+                droplet = self._request("GET", f"droplets/{droplet_id}")["droplet"]
+                if droplet["status"] == "active":
+                    return True
+            except Exception as e:
+                # 404 errors are expected initially while droplet is being created
+                if "404" not in str(e):
+                    print(f"Error checking droplet status: {e}")
             time.sleep(5)
         return False
     
