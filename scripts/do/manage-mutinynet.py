@@ -121,12 +121,12 @@ def cmd_status(client):
         print("Droplet: Not found")
     
     # Check volume
-    volumes = client._request("GET", f"volumes?name={client.get_or_create_volume()['name']}")
-    if volumes.get("volumes"):
-        volume = volumes["volumes"][0]
-        print(f"\nVolume: {volume['name']}")
-        print(f"  Size: {volume['size_gigabytes']}GB")
-        print(f"  Status: {'Attached' if volume.get('droplet_ids') else 'Detached'}")
+    volumes = client._request("GET", "volumes")
+    for volume in volumes.get("volumes", []):
+        if "mutinynet" in volume.get("name", "").lower():
+            print(f"\nVolume: {volume['name']}")
+            print(f"  Size: {volume['size_gigabytes']}GB")
+            print(f"  Status: {'Attached' if volume.get('droplet_ids') else 'Detached'}")
     
     # Check reserved IP
     ips = client._request("GET", "reserved_ips")

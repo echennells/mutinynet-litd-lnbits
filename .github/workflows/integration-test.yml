@@ -151,8 +151,8 @@ jobs:
         docker stop litd || true
         docker rm litd || true
         
-        # Stop Bitcoin on DO (but keep droplet for next run)
+        # Stop Bitcoin on DO
         python3 scripts/do/deploy.py stop || true
         
-        # Optional: destroy droplet to save money
-        # python3 scripts/do/manage-mutinynet.py destroy
+        # Destroy droplet to save money (volume is preserved)
+        python3 scripts/do/manage-mutinynet.py destroy

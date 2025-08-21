@@ -43,9 +43,9 @@ jobs:
             | jq '.workflow_runs | length')
           
           if [ "$RUNNING_WORKFLOWS" -eq "0" ]; then
-            echo "No active workflows, stopping droplet to save costs..."
+            echo "No active workflows, destroying droplet to save costs..."
             python3 scripts/do/deploy.py stop
-            python3 scripts/do/manage-mutinynet.py stop
+            python3 scripts/do/manage-mutinynet.py destroy
           else
             echo "Active workflows found, keeping droplet running"
           fi

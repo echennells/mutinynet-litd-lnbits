@@ -34,11 +34,11 @@ DROPLET_SIZES = {
 }
 
 # Volume Configuration (persistent storage for blockchain)
-# Mutinynet is much smaller than mainnet - 20GB should be plenty
-# Even with growth, mutinynet with 30s blocks shouldn't exceed this
-VOLUME_SIZE_GB = 20  # 20GB for mutinynet blockchain (costs $2/month)
+# Mutinynet is much smaller than mainnet - 7GB is sufficient
+# Current chain is ~5.2GB fully synced
+VOLUME_SIZE_GB = 7  # 7GB for mutinynet blockchain (costs $0.70/month)
 VOLUME_FILESYSTEM_TYPE = "ext4"
-VOLUME_NAME = "mutinynet-blockchain-data"
+VOLUME_NAME = "mutinynet-blockchain-data-7gb"
 
 # SSH Configuration
 SSH_KEY_NAME = "mutinynet-key"

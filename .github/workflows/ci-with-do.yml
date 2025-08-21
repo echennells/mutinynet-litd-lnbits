@@ -163,9 +163,9 @@ jobs:
       env:
         DO_API_KEY: ${{ secrets.DO_API_KEY }}
       run: |
-        # Stop the DO droplet to save costs
-        python scripts/do/manage-mutinynet.py stop || true
-        echo "Bitcoin node stopped to save costs"
+        # Destroy the DO droplet to save costs (keeps volume)
+        python scripts/do/manage-mutinynet.py destroy || true
+        echo "Bitcoin node destroyed to save costs (volume preserved)"
 
     - name: Clean up
       if: always()
