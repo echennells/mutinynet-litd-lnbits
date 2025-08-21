@@ -1,0 +1,158 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  DO_API_KEY: ${{ secrets.DO_API_KEY }}
+  BITCOIN_RPC_USER: mutinynet
+  BITCOIN_RPC_PASSWORD: ${{ secrets.BITCOIN_RPC_PASSWORD || 'testpassword123' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Start Bitcoin node on Digital Ocean
+      id: bitcoin
+      run: |
+        # Get or create Bitcoin droplet and get its IP
+        # This script handles everything: create if needed, start if stopped, return IP
+        DROPLET_IP=$(python3 scripts/get_bitcoin_host.py)
+        
+        if [ -z "$DROPLET_IP" ]; then
+          echo "Failed to get Bitcoin host IP"
+          # Create new droplet
+          python3 scripts/do/manage-mutinynet.py create
+          DROPLET_IP=$(python3 scripts/get_bitcoin_host.py)
+        fi
+        
+        echo "Bitcoin host: $DROPLET_IP"
+        echo "BITCOIN_HOST=$DROPLET_IP" >> $GITHUB_ENV
+        echo "bitcoin_host=$DROPLET_IP" >> $GITHUB_OUTPUT
+        
+        # Setup and deploy
+        python3 scripts/do/deploy.py setup
+        python3 scripts/do/deploy.py deploy
+        python3 scripts/do/deploy.py start
+        
+        # Wait for Bitcoin to be ready
+        echo "Waiting for Bitcoin to be ready..."
+        for i in {1..30}; do
+          if curl -s -u $BITCOIN_RPC_USER:$BITCOIN_RPC_PASSWORD http://$DROPLET_IP:38332 -d '{"method":"getblockcount"}' | grep -q result; then
+            echo "Bitcoin is ready!"
+            break
+          fi
+          echo "Waiting... (attempt $i/30)"
+          sleep 10
+        done
+    
+    - name: Setup Lightning Terminal on runner
+      run: |
+        # Create directories
+        mkdir -p $HOME/.lnd
+        mkdir -p $HOME/.lit
+        mkdir -p $HOME/.tapd
+        
+        # Generate Lightning wallet
+        docker run --rm -v $HOME/.lnd:/root/.lnd \
+          lightninglabs/lndinit:v0.1.23-beta-lnd-v0.18.5-beta \
+          gen-password > $HOME/.lnd/password.txt
+        
+        docker run --rm -v $HOME/.lnd:/root/.lnd \
+          lightninglabs/lndinit:v0.1.23-beta-lnd-v0.18.5-beta \
+          gen-seed > $HOME/.lnd/seed.txt
+        
+        # Create lit config
+        cat > $HOME/.lit/lit.conf << EOF
+        lnd-mode=integrated
+        network=signet
+        
+        lnd.rpclisten=0.0.0.0:10009
+        lnd.restlisten=0.0.0.0:8080
+        lnd.bitcoin.active=1
+        lnd.bitcoin.node=bitcoind
+        lnd.bitcoin.signet=1
+        lnd.bitcoind.rpchost=${{ env.BITCOIN_HOST }}:38332
+        lnd.bitcoind.rpcuser=${{ env.BITCOIN_RPC_USER }}
+        lnd.bitcoind.rpcpass=${{ env.BITCOIN_RPC_PASSWORD }}
+        lnd.bitcoind.zmqpubrawblock=tcp://${{ env.BITCOIN_HOST }}:28332
+        lnd.bitcoind.zmqpubrawtx=tcp://${{ env.BITCOIN_HOST }}:28333
+        
+        taproot-assets.universe.host=testnet.universe.lightning.space:10029
+        taproot-assets.universe.sync-all-assets=true
+        taproot-assets.allow-public-uni-proof-courier=true
+        
+        lnd.protocol.option-scid-alias=true
+        lnd.protocol.zero-conf=true
+        lnd.protocol.simple-taproot-chans=true
+        lnd.accept-keysend=true
+        EOF
+    
+    - name: Start Lightning Terminal
+      run: |
+        # Run litd in background
+        docker run -d \
+          --name litd \
+          -v $HOME/.lnd:/root/.lnd \
+          -v $HOME/.lit:/root/.lit \
+          -v $HOME/.tapd:/root/.tapd \
+          -p 8443:8443 \
+          -p 10009:10009 \
+          -p 8080:8080 \
+          -p 9735:9735 \
+          lightninglabs/lightning-terminal:v0.14.1-alpha
+        
+        # Wait for Lightning to start
+        echo "Waiting for Lightning Terminal..."
+        sleep 30
+        
+        # Check status
+        docker logs litd
+    
+    - name: Run integration tests
+      run: |
+        # Example: Check if Lightning can connect to Bitcoin
+        docker exec litd lncli --network=signet getinfo || true
+        
+        # Add your actual tests here
+        # python3 tests/integration/test_lightning.py
+        # python3 tests/integration/test_taproot_assets.py
+    
+    - name: Collect logs on failure
+      if: failure()
+      run: |
+        echo "=== Bitcoin logs ==="
+        python3 scripts/do/deploy.py logs || true
+        
+        echo "=== Lightning logs ==="
+        docker logs litd || true
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        # Stop Lightning on runner
+        docker stop litd || true
+        docker rm litd || true
+        
+        # Stop Bitcoin on DO (but keep droplet for next run)
+        python3 scripts/do/deploy.py stop || true
+        
+        # Optional: destroy droplet to save money
+        # python3 scripts/do/manage-mutinynet.py destroy

@@ -1,0 +1,54 @@
+name: Cleanup Idle Resources
+
+on:
+  schedule:
+    # Run every 2 hours to check for idle droplets
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  DO_API_KEY: ${{ secrets.DO_API_KEY }}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Check and stop idle droplet
+      run: |
+        # Check if droplet exists and is running
+        if python3 scripts/do/manage-mutinynet.py status | grep -q "Status: active"; then
+          echo "Droplet is running, checking last activity..."
+          
+          # You could add logic here to check if it's been idle
+          # For now, just stop it if no active workflows
+          
+          # Check if any workflows are currently running
+          RUNNING_WORKFLOWS=$(curl -s \
+            -H "Authorization: token ${{ github.token }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs?status=in_progress" \
+            | jq '.workflow_runs | length')
+          
+          if [ "$RUNNING_WORKFLOWS" -eq "0" ]; then
+            echo "No active workflows, stopping droplet to save costs..."
+            python3 scripts/do/deploy.py stop
+            python3 scripts/do/manage-mutinynet.py stop
+          else
+            echo "Active workflows found, keeping droplet running"
+          fi
+        else
+          echo "Droplet is not running or doesn't exist"
+        fi

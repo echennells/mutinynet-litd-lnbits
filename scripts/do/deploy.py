@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from infrastructure.digital_ocean.client import MutinynetDOClient
 from infrastructure.digital_ocean.ssh_connection import SimpleSSHConnection
+from infrastructure.digital_ocean.config import BITCOIN_RPC_USER, BITCOIN_RPC_PASSWORD
 
 
 class MutinynetDeployer:
@@ -94,9 +95,21 @@ class MutinynetDeployer:
         
         for cmd in setup_commands:
             print(f"Running: {cmd}")
-            returncode, stdout, stderr = self.ssh.execute_command(cmd)
+            # Retry each command if connection fails
+            for attempt in range(3):
+                returncode, stdout, stderr = self.ssh.execute_command(cmd, timeout=120)
+                if returncode == -1 and "Connection refused" in stderr:
+                    print(f"Connection failed, retrying... (attempt {attempt + 1}/3)")
+                    time.sleep(2)
+                    # Reinitialize SSH connection
+                    self.ssh = SimpleSSHConnection(self.ip)
+                    continue
+                break
+            
+            if stdout:
+                print(f"  Output: {stdout.strip()}")
             if returncode != 0 and "already exists" not in stderr:
-                print(f"Warning: {stderr}")
+                print(f"  Warning: {stderr.strip() if stderr else f'Command failed with code {returncode}'}")
         
         print("Setup completed!")
         return True
@@ -108,20 +121,20 @@ class MutinynetDeployer:
         if not self.get_droplet_info():
             return False
         
-        # Clone the repository on the droplet
+        # Clone the repository on the droplet - combine commands to avoid cd issues
         print("Cloning repository on droplet...")
-        clone_commands = [
-            "cd /opt",
-            "rm -rf /opt/mutinynet-litd-lnbits",
-            "git clone https://github.com/echennells/mutinynet-litd-lnbits.git",
-            "cd /opt/mutinynet-litd-lnbits",
-            "ls -la"
-        ]
         
-        for cmd in clone_commands:
-            returncode, stdout, stderr = self.ssh.execute_command(cmd)
-            if returncode != 0 and "already exists" not in stderr:
-                print(f"Warning running '{cmd}': {stderr}")
+        # Single command to clone - more reliable with high latency
+        clone_cmd = "cd /opt && rm -rf mutinynet-litd-lnbits && git clone https://github.com/echennells/mutinynet-litd-lnbits.git && ls -la mutinynet-litd-lnbits/"
+        returncode, stdout, stderr = self.ssh.execute_command(clone_cmd, timeout=300)  # 5 min timeout for clone
+        
+        if returncode != 0:
+            print(f"Warning: Clone command had issues: {stderr}")
+            # Try to verify if it partially worked
+            returncode, stdout, stderr = self.ssh.execute_command("ls -la /opt/mutinynet-litd-lnbits/ 2>&1 || echo 'Directory not found'")
+            print(f"Directory check: {stdout}")
+        else:
+            print("Repository cloned successfully")
         
         # Create local directory for deployment files
         deploy_dir = Path(__file__).parent.parent.parent / "deploy"
@@ -160,7 +173,7 @@ services:
         
         # Bitcoin.conf is now properly configured in the repo
         # Just copy it from the repo
-        bitcoin_conf = """# Mutinynet Configuration
+        bitcoin_conf = f"""# Mutinynet Configuration
 signet=1
 server=1
 txindex=1
@@ -175,8 +188,8 @@ rpcbind=0.0.0.0:38332
 rpcallowip=0.0.0.0/0
 
 # RPC Configuration
-rpcuser=bitcoin
-rpcpassword=bitcoin
+rpcuser={BITCOIN_RPC_USER}
+rpcpassword={BITCOIN_RPC_PASSWORD}
 
 # ZMQ Configuration
 zmqpubrawblock=tcp://0.0.0.0:28332
@@ -232,7 +245,7 @@ maxmempool=300
                 # Get initial status
                 print("\nChecking Bitcoin status...")
                 self.ssh.execute_command(
-                    "sleep 5 && docker exec bitcoind bitcoin-cli -rpcuser=bitcoin -rpcpassword=bitcoin getblockchaininfo | grep -E 'chain|blocks|headers' || echo 'Still starting...'"
+                    f"sleep 5 && docker exec bitcoind bitcoin-cli -rpcuser={BITCOIN_RPC_USER} -rpcpassword={BITCOIN_RPC_PASSWORD} getblockchaininfo | grep -E 'chain|blocks|headers' || echo 'Still starting...'"
                 )
             else:
                 print("✗ Bitcoin container failed to start")
@@ -275,7 +288,7 @@ maxmempool=300
         # Check Bitcoin status
         print("\nBitcoin daemon status:")
         returncode, stdout, stderr = self.ssh.execute_command(
-            "docker exec bitcoind bitcoin-cli -rpcuser=bitcoin -rpcpassword=bitcoin getblockchaininfo 2>/dev/null | jq -r '.chain, .blocks, .headers, .verificationprogress' 2>/dev/null || echo 'Bitcoin not ready'"
+            f"docker exec bitcoind bitcoin-cli -rpcuser={BITCOIN_RPC_USER} -rpcpassword={BITCOIN_RPC_PASSWORD} getblockchaininfo 2>/dev/null | jq -r '.chain, .blocks, .headers, .verificationprogress' 2>/dev/null || echo 'Bitcoin not ready'"
         )
         if returncode == 0 and stdout:
             lines = stdout.strip().split('\n')
@@ -294,6 +307,8 @@ maxmempool=300
         print(f"\nAccess points:")
         print(f"  SSH: ssh root@{self.ip}")
         print(f"  Bitcoin RPC: http://{self.ip}:38332")
+        print(f"    Username: {BITCOIN_RPC_USER}")
+        print(f"    Password: {BITCOIN_RPC_PASSWORD}")
         print(f"  Bitcoin P2P: {self.ip}:38333")
         
         return True

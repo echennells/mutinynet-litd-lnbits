@@ -196,6 +196,9 @@ echo "Setup complete!"
             self.wait_for_droplet_active(droplet["id"])
             self.assign_reserved_ip(reserved_ip["ip"], droplet["id"])
         
+        # Create or update firewall
+        self.create_or_update_firewall([droplet["id"]])
+        
         return droplet
     
     def wait_for_droplet_active(self, droplet_id: int, timeout: int = 300) -> bool:
@@ -276,6 +279,89 @@ echo "Setup complete!"
             if key["name"] == name:
                 return key
         return None
+    
+    def create_or_update_firewall(self, droplet_ids: List[int]) -> Dict:
+        """Create or update firewall rules"""
+        # Check for existing firewall
+        response = self._request("GET", "firewalls")
+        for fw in response.get("firewalls", []):
+            if fw.get("name") == FIREWALL_NAME:
+                print(f"Updating existing firewall: {FIREWALL_NAME}")
+                # Update with new droplet IDs
+                data = {
+                    "droplet_ids": droplet_ids,
+                    "tags": ["mutinynet"]
+                }
+                return self._request("PUT", f"firewalls/{fw['id']}", data)
+        
+        # Create new firewall
+        print(f"Creating firewall: {FIREWALL_NAME}")
+        
+        # GitHub Actions IP ranges (these change, so we need to be more permissive)
+        # In production, you'd fetch these from https://api.github.com/meta
+        inbound_rules = [
+            # SSH - restrict to specific IPs if possible
+            {
+                "protocol": "tcp",
+                "ports": "22",
+                "sources": {
+                    "addresses": ["0.0.0.0/0", "::/0"]  # TODO: Restrict this
+                }
+            },
+            # Bitcoin RPC - for testing
+            {
+                "protocol": "tcp", 
+                "ports": "38332",
+                "sources": {
+                    "addresses": ["0.0.0.0/0", "::/0"]  # TODO: Restrict to GitHub Actions
+                }
+            },
+            # Bitcoin P2P - needs to be open for peer connections
+            {
+                "protocol": "tcp",
+                "ports": "38333", 
+                "sources": {
+                    "addresses": ["0.0.0.0/0", "::/0"]
+                }
+            },
+            # ZMQ ports
+            {
+                "protocol": "tcp",
+                "ports": "28332-28334",
+                "sources": {
+                    "addresses": ["0.0.0.0/0", "::/0"]  # TODO: Restrict to GitHub Actions
+                }
+            }
+        ]
+        
+        # Outbound - allow everything
+        outbound_rules = [
+            {
+                "protocol": "tcp",
+                "ports": "all",
+                "destinations": {
+                    "addresses": ["0.0.0.0/0", "::/0"]
+                }
+            },
+            {
+                "protocol": "udp",
+                "ports": "all", 
+                "destinations": {
+                    "addresses": ["0.0.0.0/0", "::/0"]
+                }
+            }
+        ]
+        
+        data = {
+            "name": FIREWALL_NAME,
+            "inbound_rules": inbound_rules,
+            "outbound_rules": outbound_rules,
+            "droplet_ids": droplet_ids,
+            "tags": ["mutinynet"]
+        }
+        
+        result = self._request("POST", "firewalls", data)
+        return result.get("firewall", {})
     
     def ensure_ssh_key(self) -> str:
         """Ensure SSH key exists in DO account, create if needed"""

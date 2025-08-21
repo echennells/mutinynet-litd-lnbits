@@ -44,7 +44,7 @@ VOLUME_NAME = "mutinynet-blockchain-data"
 SSH_KEY_NAME = "mutinynet-key"
 SSH_USERNAME = "root"
 SSH_PORT = 22
-SSH_TIMEOUT = 30
+SSH_TIMEOUT = 120  # 2 minutes for high jitter networks
 
 # Paths
 REMOTE_WORKSPACE = "/opt/mutinynet"
@@ -71,3 +71,14 @@ RESERVED_IP_NAME = "mutinynet-ip"
 # Cost Optimization Settings
 AUTO_SHUTDOWN_HOURS = 2  # Auto shutdown after 2 hours of inactivity
 SNAPSHOT_BEFORE_DESTROY = True  # Create snapshot before destroying droplet
+
+# Bitcoin RPC Credentials (generate random ones if not set)
+import secrets
+import string
+def generate_password(length=20):
+    """Generate a secure random password"""
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+BITCOIN_RPC_USER = os.getenv("BITCOIN_RPC_USER", "mutinynet")
+BITCOIN_RPC_PASSWORD = os.getenv("BITCOIN_RPC_PASSWORD", generate_password())

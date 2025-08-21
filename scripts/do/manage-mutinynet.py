@@ -137,19 +137,14 @@ def cmd_status(client):
             break
 
 
-def cmd_destroy(client, force=False):
+def cmd_destroy(client):
     """Destroy droplet but keep volume"""
     droplet = client.find_mutinynet_droplet()
     if not droplet:
         print("No Mutinynet droplet found.")
         return
     
-    if not force:
-        response = input(f"Are you sure you want to destroy {droplet['name']}? Volume will be preserved. (yes/no): ")
-        if response.lower() != 'yes':
-            print("Cancelled.")
-            return
-    
+    print(f"Destroying droplet {droplet['name']}...")
     client.destroy_droplet_keep_volume(droplet['id'])
     print(f"Destroyed droplet {droplet['name']}. Volume preserved for next deployment.")
 
@@ -177,8 +172,6 @@ def main():
     parser = argparse.ArgumentParser(description="Manage Mutinynet Bitcoin node on Digital Ocean")
     parser.add_argument("command", choices=["create", "start", "stop", "status", "destroy", "costs"],
                         help="Command to execute")
-    parser.add_argument("--force", "-f", action="store_true",
-                        help="Skip confirmation prompts (for automation)")
     
     args = parser.parse_args()
     
@@ -193,7 +186,7 @@ def main():
         "start": lambda: cmd_start(client),
         "stop": lambda: cmd_stop(client),
         "status": lambda: cmd_status(client),
-        "destroy": lambda: cmd_destroy(client, force=args.force),
+        "destroy": lambda: cmd_destroy(client),
         "costs": lambda: cmd_costs(client)
     }
     
