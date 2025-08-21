@@ -1,60 +1,32 @@
-x-logging:
-  &default-logging
-  driver: "json-file"
-  options:
-    max-size: "50m"
-    max-file: "3"
+version: '3.8'
+
+# Test-specific overrides for CI environment
 services:
   bitcoind:
-    container_name: "bitcoind"
-    build: .
-    user: "0:1000"
-    logging: *default-logging
-    restart: always
-    stop_grace_period: 1m
-    volumes:
-      - ~/volumes/.bitcoin:/root/.bitcoin
     environment:
       RPCPASSWORD: bitcoin
-    ports:
-      - "28332:28332"
-      - "28333:28333"
-      - "28334:28334"
-      - "38332:38332"
-      - "38333:38333"
-      - "38334:38334"
-
-  lit-init:
-    container_name: "lit-init"
-    image: lightninglabs/lndinit:v0.1.23-beta-lnd-v0.18.5-beta
-    volumes:
-      - ./lnd-init.sh:/usr/local/bin/lnd-init.sh:ro
-      - ~/volumes/.lnd:/root/.lnd
-    environment:
-      WALLET_DIR: "/root/.lnd/data/chain/bitcoin/signet"
-    entrypoint: ""
-    command: ["/bin/bash", "/usr/local/bin/lnd-init.sh"]
+    # Use tmpfs for faster test execution
+    tmpfs:
+      - /root/.bitcoin/signet
+    # Reduce resource limits for CI
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
 
   lit:
-    container_name: "lit"
-    image: lightninglabs/lightning-terminal:v0.14.1-alpha
-    depends_on:
-      - bitcoind
-      - lit-init
-    volumes:
-      - ~/volumes/.lit:/root/.lit
-      - ~/volumes/.lnd:/root/.lnd
-      - ~/volumes/.tapd:/root/.tapd
     environment:
       LIT_CONFIG: |
         network=signet
         lnd-mode=integrated
-        uipassword=your_secure_password
+        uipassword=testpassword123
         httpslisten=0.0.0.0:8443
         autopilot.disable=true
         lnd.rpclisten=0.0.0.0:10009
         lnd.restlisten=0.0.0.0:8080
         lnd.tlsextradomain=lit
+        lnd.tlsextradomain=localhost
         lnd.bitcoin.active=1
         lnd.bitcoin.node=bitcoind
         lnd.bitcoin.signet=1
@@ -66,7 +38,7 @@ services:
         lnd.rpcmiddleware.enable=true
         lnd.wallet-unlock-password-file=/root/.lnd/password.txt
         lnd.listen=0.0.0.0:9735
-        lnd.externalip=${EXTERNAL_IP}:9735
+        lnd.externalip=127.0.0.1:9735
         taproot-assets-mode=integrated
         taproot-assets.network=signet
         taproot-assets.rpclisten=0.0.0.0:10029
@@ -76,50 +48,41 @@ services:
         taproot-assets.universe.sync-all-assets=true
         taproot-assets.universe.public-access=rw
         taproot-assets.proofcourieraddr=universerpc://universe.signet.laisee.org:8443
-        # Taproot Assets Lightning config
         lnd.protocol.option-scid-alias=true
         lnd.protocol.zero-conf=true
         lnd.protocol.simple-taproot-chans=true
         lnd.protocol.simple-taproot-overlay-chans=true
         lnd.protocol.custom-message=17
         lnd.accept-keysend=true
-        # Mock price oracle settings for RFQ
         taproot-assets.experimental.rfq.priceoracleaddress=use_mock_price_oracle_service_promise_to_not_use_on_mainnet
         taproot-assets.experimental.rfq.mockoracleassetsperbtc=100000
-    entrypoint: >
-      sh -c "echo \"$$LIT_CONFIG\" > /root/.lit/lit.conf && litd"
-    ports:
-      - "8443:8443"
-      - "10009:10009"
-      - "9735:9735"
-      - "8080:8080"
-      - "10029:10029"  # tapd RPC port
+        # Test-specific: faster sync
+        lnd.sync-freelist=true
+        lnd.stagger-initial-reconnect=true
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
 
   lnbits:
-    container_name: "lnbits"
-    build:
-      context: /home/ubuntu/lnbits
-      dockerfile: Dockerfile
-    volumes:
-      - ~/volumes/.lnd:/root/.lnd:ro
-      - ~/volumes/.tapd:/root/.tapd:ro
-    entrypoint: >
-      sh -c "cd /app &&
-      echo 'Starting LNbits service...' &&
-      poetry run lnbits --port 5000 --host 0.0.0.0"
     environment:
       - LNBITS_BACKEND_WALLET_CLASS=LndRestWallet
       - LND_REST_ENDPOINT=https://lit:8080
       - LND_REST_CERT=/root/.lnd/tls.cert
       - LND_REST_MACAROON=/root/.lnd/data/chain/bitcoin/signet/admin.macaroon
       - LNBITS_NETWORK=signet
-      - LNBITS_SITE_TITLE=MutinyNet LNBits
+      - LNBITS_SITE_TITLE=MutinyNet Test
       - LNBITS_BASEURL=http://127.0.0.1:5000
       - TAPD_HOST=lit:10009
       - TAPD_NETWORK=signet
       - TAPD_TLS_CERT_PATH=/root/.lnd/tls.cert
       - TAPD_MACAROON_PATH=/root/.tapd/data/signet/admin.macaroon
-    ports:
-      - "5000:5000"
-    depends_on:
-      - lit
+      # Test-specific settings
+      - LNBITS_ADMIN_UI=true
+      - DEBUG=true
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'

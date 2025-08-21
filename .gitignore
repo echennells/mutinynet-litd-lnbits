@@ -1,4 +1,9 @@
 .env
+.env.local
+config.py
 banned_users.txt
 banned_domains.txt
 /faucet_config
+__pycache__/
+*.pyc
+venv/

@@ -1,0 +1,28 @@
+version: '3.8'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+services:
+  bitcoind:
+    container_name: "bitcoind"
+    build:
+      context: /opt/mutinynet-litd-lnbits
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      # CRITICAL: Mount the persistent volume to where Bitcoin actually writes data
+      - /mnt/mutinynet-volume/bitcoin:/root/.bitcoin:rw
+    environment:
+      BITCOIN_DIR: /root/.bitcoin
+    ports:
+      - "28332:28332"
+      - "28333:28333"
+      - "28334:28334"
+      - "38332:38332"
+      - "38333:38333"

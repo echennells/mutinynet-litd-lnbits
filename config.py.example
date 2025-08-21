@@ -1,0 +1,10 @@
+"""
+Configuration file for Mutinynet deployment
+Copy this to config.py and add your API keys
+"""
+
+import os
+
+# Digital Ocean Configuration
+# Get your API key from: https://cloud.digitalocean.com/account/api/tokens
+DIGITAL_OCEAN_API_KEY = os.getenv("DO_API_KEY", "")  # Add your API key here or set DO_API_KEY env var

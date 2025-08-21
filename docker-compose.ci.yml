@@ -1,0 +1,53 @@
+version: '3.8'
+
+# CI override - uses external Bitcoin node instead of local container
+services:
+  # Remove bitcoind service - we'll use an external one
+  bitcoind:
+    deploy:
+      replicas: 0
+
+  lit:
+    environment:
+      LIT_CONFIG: |
+        network=signet
+        lnd-mode=integrated
+        uipassword=testpassword123
+        httpslisten=0.0.0.0:8443
+        autopilot.disable=true
+        lnd.rpclisten=0.0.0.0:10009
+        lnd.restlisten=0.0.0.0:8080
+        lnd.tlsextradomain=lit
+        lnd.tlsextradomain=localhost
+        lnd.bitcoin.active=1
+        lnd.bitcoin.node=bitcoind
+        lnd.bitcoin.signet=1
+        # EXTERNAL BITCOIN NODE CONNECTION
+        # Update these to point to your persistent mutinynet node
+        lnd.bitcoind.rpchost=${BITCOIN_RPC_HOST:-45.79.52.207:38332}
+        lnd.bitcoind.rpcuser=${BITCOIN_RPC_USER:-bitcoin}
+        lnd.bitcoind.rpcpass=${BITCOIN_RPC_PASS:-bitcoin}
+        lnd.bitcoind.zmqpubrawblock=tcp://${BITCOIN_ZMQ_HOST:-45.79.52.207:28332}
+        lnd.bitcoind.zmqpubrawtx=tcp://${BITCOIN_ZMQ_HOST:-45.79.52.207:28333}
+        lnd.rpcmiddleware.enable=true
+        lnd.wallet-unlock-password-file=/root/.lnd/password.txt
+        lnd.listen=0.0.0.0:9735
+        lnd.externalip=127.0.0.1:9735
+        taproot-assets-mode=integrated
+        taproot-assets.network=signet
+        taproot-assets.rpclisten=0.0.0.0:10029
+        taproot-assets.lnd.host=localhost:10029
+        taproot-assets.universe.federationserver=universe.signet.laisee.org:8443
+        taproot-assets.universe.no-default-federation=true
+        taproot-assets.universe.sync-all-assets=true
+        taproot-assets.universe.public-access=rw
+        taproot-assets.proofcourieraddr=universerpc://universe.signet.laisee.org:8443
+        lnd.protocol.option-scid-alias=true
+        lnd.protocol.zero-conf=true
+        lnd.protocol.simple-taproot-chans=true
+        lnd.protocol.simple-taproot-overlay-chans=true
+        lnd.protocol.custom-message=17
+        lnd.accept-keysend=true
+        taproot-assets.experimental.rfq.priceoracleaddress=use_mock_price_oracle_service_promise_to_not_use_on_mainnet
+        taproot-assets.experimental.rfq.mockoracleassetsperbtc=100000
+    depends_on: []  # Remove dependency on local bitcoind

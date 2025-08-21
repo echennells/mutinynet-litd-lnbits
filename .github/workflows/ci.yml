@@ -1,0 +1,91 @@
+name: CI Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  EXTERNAL_IP: "127.0.0.1"
+  COMPOSE_PROJECT_NAME: mutinynet-test
+
+jobs:
+  test-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Create required volumes directories
+      run: |
+        mkdir -p ~/volumes/.bitcoin
+        mkdir -p ~/volumes/.lnd
+        mkdir -p ~/volumes/.lit
+        mkdir -p ~/volumes/.tapd
+        chmod -R 777 ~/volumes
+
+    - name: Create test environment file
+      run: |
+        echo "EXTERNAL_IP=127.0.0.1" > .env
+        echo "RPCPASSWORD=bitcoin" >> .env
+
+    - name: Build Docker images
+      run: |
+        docker-compose build --parallel
+
+    - name: Start Bitcoin daemon
+      run: |
+        docker-compose up -d bitcoind
+        echo "Waiting for bitcoind to start..."
+        ./scripts/wait-for-service.sh bitcoind 38332 60
+
+    - name: Initialize Lightning Terminal
+      run: |
+        docker-compose up lit-init
+        echo "Waiting for lit-init to complete..."
+        sleep 10
+
+    - name: Start Lightning Terminal
+      run: |
+        docker-compose up -d lit
+        echo "Waiting for Lightning Terminal to start..."
+        ./scripts/wait-for-service.sh lit 8443 120
+
+    - name: Start LNbits
+      run: |
+        docker-compose up -d lnbits
+        echo "Waiting for LNbits to start..."
+        ./scripts/wait-for-service.sh lnbits 5000 60
+
+    - name: Check service health
+      run: |
+        ./scripts/health-check.sh
+
+    - name: Run integration tests
+      run: |
+        ./tests/integration-test.sh
+
+    - name: Collect logs on failure
+      if: failure()
+      run: |
+        echo "=== Docker Compose Status ==="
+        docker-compose ps
+        echo "=== Bitcoin Logs ==="
+        docker-compose logs --tail=100 bitcoind
+        echo "=== Lightning Terminal Logs ==="
+        docker-compose logs --tail=100 lit
+        echo "=== LNbits Logs ==="
+        docker-compose logs --tail=100 lnbits
+
+    - name: Clean up
+      if: always()
+      run: |
+        docker-compose down -v
+        rm -rf ~/volumes

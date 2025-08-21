@@ -1,0 +1,10 @@
+# Python dependencies for Mutinynet infrastructure management
+
+# API and networking
+requests>=2.31.0
+paramiko>=3.4.0  # For SSH connections
+
+# Optional: For enhanced features
+python-dotenv>=1.0.0  # For .env file support
+click>=8.1.0  # For better CLI experience
+rich>=13.0.0  # For pretty terminal output

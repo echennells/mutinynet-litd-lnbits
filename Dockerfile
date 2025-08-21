@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 LABEL org.opencontainers.image.authors="NBD"
 LABEL org.opencontainers.image.licenses=MIT
 

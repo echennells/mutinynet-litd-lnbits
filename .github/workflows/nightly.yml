@@ -1,0 +1,104 @@
+name: Nightly Full Test
+
+on:
+  schedule:
+    # Run at 2:00 AM UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  full-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Create required volumes
+      run: |
+        mkdir -p ~/volumes/.bitcoin ~/volumes/.lnd ~/volumes/.lit ~/volumes/.tapd
+        chmod -R 777 ~/volumes
+
+    - name: Create environment file
+      run: |
+        echo "EXTERNAL_IP=127.0.0.1" > .env
+        echo "RPCPASSWORD=bitcoin" >> .env
+
+    - name: Start full stack
+      run: |
+        docker-compose -f docker-compose.yml -f docker-compose.test.yml up -d
+
+    - name: Wait for services to be ready
+      run: |
+        echo "Waiting for services to fully start..."
+        sleep 30
+        ./scripts/wait-for-service.sh bitcoind 38332 120
+        ./scripts/wait-for-service.sh lit 8443 180
+        ./scripts/wait-for-service.sh lnbits 5000 120
+
+    - name: Run extended tests
+      run: |
+        # Run basic health checks
+        ./scripts/health-check.sh
+        
+        # Run integration tests
+        ./tests/integration-test.sh
+        
+        # Additional tests for nightly
+        echo "=== Extended Nightly Tests ==="
+        
+        # Test blockchain sync progress
+        echo -n "Checking blockchain sync... "
+        BLOCKS=$(docker exec bitcoind bitcoin-cli -rpcuser=bitcoin -rpcpassword=bitcoin getblockcount)
+        echo "Block height: $BLOCKS"
+        
+        # Test Lightning wallet balance
+        echo -n "Checking LND wallet... "
+        docker exec lit lncli --network=signet walletbalance || echo "Wallet not ready"
+        
+        # Test Taproot Assets universe sync
+        echo -n "Checking universe sync... "
+        docker exec lit tapcli universe sync || echo "Universe sync in progress"
+
+    - name: Stress test (optional)
+      continue-on-error: true
+      run: |
+        echo "Running basic stress test..."
+        # Create multiple API calls to LNbits
+        for i in {1..10}; do
+          curl -s http://localhost:5000/api/v1/health &
+        done
+        wait
+        echo "Stress test completed"
+
+    - name: Generate report
+      if: always()
+      run: |
+        echo "=== Test Report ==="
+        echo "Date: $(date)"
+        echo "Commit: ${{ github.sha }}"
+        echo ""
+        docker-compose ps
+        echo ""
+        echo "=== Resource Usage ==="
+        docker stats --no-stream
+
+    - name: Upload logs
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: nightly-test-logs
+        path: |
+          ~/volumes/.lnd/logs/
+          ~/volumes/.tapd/logs/
+        retention-days: 7
+
+    - name: Cleanup
+      if: always()
+      run: |
+        docker-compose down -v
+        rm -rf ~/volumes
