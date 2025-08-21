@@ -41,7 +41,7 @@ VOLUME_FILESYSTEM_TYPE = "ext4"
 VOLUME_NAME = "mutinynet-blockchain-data-7gb"
 
 # SSH Configuration
-SSH_KEY_NAME = "mutinynet-key"
+SSH_KEY_NAME = "mutinynet-ci"  # Use the CI key that's in GitHub secrets
 SSH_USERNAME = "root"
 SSH_PORT = 22
 SSH_TIMEOUT = 120  # 2 minutes for high jitter networks
