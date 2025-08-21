@@ -161,7 +161,11 @@ apt-get install -y docker-compose
 
 # Clone the repository
 cd {REMOTE_WORKSPACE}
-git clone https://github.com/yourusername/mutinynet-litd-lnbits.git . || true
+git clone https://github.com/echennells/mutinynet-litd-lnbits.git . || true
+
+# Copy deploy files to expected location
+cp -r deploy/* ./ 2>/dev/null || true
+cp deploy/bitcoin.conf /mnt/mutinynet-volume/bitcoin/bitcoin.conf 2>/dev/null || true
 
 # Create symlink for bitcoin data to persistent volume
 mkdir -p /mnt/mutinynet-volume/bitcoin
