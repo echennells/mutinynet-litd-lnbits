@@ -65,7 +65,7 @@ FIREWALL_RULES = [
 ]
 
 # Reserved IP for consistent access
-USE_RESERVED_IP = True
+USE_RESERVED_IP = False  # Don't use reserved IPs - ephemeral IPs are fine for CI/CD
 RESERVED_IP_NAME = "mutinynet-ip"
 
 # Cost Optimization Settings
