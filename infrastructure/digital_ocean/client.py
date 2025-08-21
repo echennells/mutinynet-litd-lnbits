@@ -287,12 +287,16 @@ echo "Setup complete!"
         for fw in response.get("firewalls", []):
             if fw.get("name") == FIREWALL_NAME:
                 print(f"Updating existing firewall: {FIREWALL_NAME}")
-                # Update with new droplet IDs
-                data = {
-                    "droplet_ids": droplet_ids,
-                    "tags": ["mutinynet"]
-                }
-                return self._request("PUT", f"firewalls/{fw['id']}", data)
+                # For updates, just assign droplets - don't need to resend rules
+                # Use the firewall assign endpoint instead of PUT
+                for droplet_id in droplet_ids:
+                    try:
+                        self._request("POST", f"firewalls/{fw['id']}/droplets", {
+                            "droplet_ids": [droplet_id]
+                        })
+                    except Exception as e:
+                        print(f"Note: Droplet might already be in firewall: {e}")
+                return fw
         
         # Create new firewall
         print(f"Creating firewall: {FIREWALL_NAME}")
