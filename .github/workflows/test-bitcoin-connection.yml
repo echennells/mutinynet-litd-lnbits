@@ -55,6 +55,9 @@ jobs:
         for i in {1..30}; do
           if nc -zv ${{ env.DROPLET_IP }} 22 2>/dev/null; then
             echo "SSH is ready!"
+            # Wait additional time for user_data script to complete
+            echo "Waiting 2 minutes for setup script to complete..."
+            sleep 120
             break
           fi
           echo "Attempt $i/30: SSH not ready yet..."
@@ -71,9 +74,9 @@ jobs:
       run: |
         echo "Waiting for Bitcoin to be ready..."
         
-        # Read bitcoin.conf to get RPC credentials
-        RPC_USER=$(ssh root@${{ env.DROPLET_IP }} "grep rpcuser /mnt/mutinynet-volume/bitcoin/bitcoin.conf | cut -d'=' -f2")
-        RPC_PASS=$(ssh root@${{ env.DROPLET_IP }} "grep rpcpassword /mnt/mutinynet-volume/bitcoin/bitcoin.conf | cut -d'=' -f2")
+        # Use known RPC credentials from deploy/bitcoin.conf
+        RPC_USER="mutinynet"
+        RPC_PASS="uBoBbUdAmCvNOuXfUW3c"
         
         echo "RPC_USER=$RPC_USER" >> $GITHUB_ENV
         echo "RPC_PASS=$RPC_PASS" >> $GITHUB_ENV

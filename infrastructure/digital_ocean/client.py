@@ -167,9 +167,8 @@ git clone https://github.com/echennells/mutinynet-litd-lnbits.git . || true
 cp -r deploy/* ./ 2>/dev/null || true
 cp deploy/bitcoin.conf /mnt/mutinynet-volume/bitcoin/bitcoin.conf 2>/dev/null || true
 
-# Create symlink for bitcoin data to persistent volume
+# Ensure bitcoin directory exists on volume
 mkdir -p /mnt/mutinynet-volume/bitcoin
-ln -sf /mnt/mutinynet-volume/bitcoin ~/volumes/.bitcoin
 
 # Start Bitcoin container
 cd {REMOTE_WORKSPACE}
