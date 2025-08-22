@@ -1,0 +1,121 @@
+name: Test Lightning Connection
+
+on:
+  workflow_dispatch: # Manual trigger for testing
+
+jobs:
+  test-lightning:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        pip install requests python-dotenv
+    
+    - name: Setup SSH key for droplet creation
+      run: |
+        # Put the CI key where the module expects it
+        mkdir -p ~/.ssh
+        echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        # Generate public key from private key
+        ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+    
+    - name: Create and start Bitcoin + Lightning node
+      env:
+        DO_API_KEY: ${{ secrets.DO_API_KEY }}
+      run: |
+        echo "Creating/starting node on Digital Ocean..."
+        
+        # Check if droplet exists, create if not
+        if python3 scripts/do/manage-mutinynet.py status | grep -q "Droplet: Not found"; then
+          echo "No droplet found, creating new one..."
+          python3 scripts/do/manage-mutinynet.py create
+        else
+          echo "Droplet exists, starting it..."
+          python3 scripts/do/manage-mutinynet.py start
+        fi
+        
+        # Get the droplet IP
+        DROPLET_IP=$(python3 scripts/do/manage-mutinynet.py status | grep "IP:" | awk '{print $2}')
+        echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
+        echo "Droplet IP: $DROPLET_IP"
+    
+    - name: Wait for setup to complete
+      run: |
+        echo "Waiting for SSH on ${{ env.DROPLET_IP }}..."
+        for i in {1..30}; do
+          if nc -zv ${{ env.DROPLET_IP }} 22 2>/dev/null; then
+            echo "SSH is ready!"
+            # Wait for user_data script to complete
+            echo "Waiting 3 minutes for setup script to complete..."
+            sleep 180
+            break
+          fi
+          echo "Attempt $i/30: SSH not ready yet..."
+          sleep 10
+        done
+        
+        # Add host to known_hosts
+        ssh-keyscan -H ${{ env.DROPLET_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+    
+    - name: Start Lightning Terminal
+      run: |
+        echo "Copying Lightning compose file..."
+        scp deploy/docker-compose-full.yml root@${{ env.DROPLET_IP }}:/opt/mutinynet-litd-lnbits/
+        
+        echo "Stopping current Bitcoin to switch to full compose..."
+        ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose down"
+        
+        echo "Starting Bitcoin + Lightning Terminal..."
+        ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose -f docker-compose-full.yml up -d"
+        
+        # Wait for Lightning to initialize
+        echo "Waiting 30 seconds for Lightning to initialize..."
+        sleep 30
+    
+    - name: Test Lightning connection
+      run: |
+        echo "Testing Lightning Terminal..."
+        
+        # Test if Lightning Terminal UI responds
+        if ssh root@${{ env.DROPLET_IP }} "curl -k -s https://localhost:8443 | grep -q 'Lightning Terminal'"; then
+          echo "✅ Lightning Terminal UI is running!"
+        else
+          echo "❌ Lightning Terminal UI not responding"
+          ssh root@${{ env.DROPLET_IP }} "docker logs lit --tail 50"
+          exit 1
+        fi
+        
+        # Test LND getinfo
+        echo "Testing LND via lncli..."
+        NODE_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet getinfo")
+        echo "$NODE_INFO"
+        
+        # Extract node pubkey
+        NODE_PUBKEY=$(echo "$NODE_INFO" | grep identity_pubkey | cut -d'"' -f4)
+        echo "Lightning node pubkey: $NODE_PUBKEY"
+        
+        if [ -n "$NODE_PUBKEY" ]; then
+          echo "✅ Lightning node is operational!"
+        else
+          echo "❌ Failed to get node info"
+          exit 1
+        fi
+    
+    - name: Cleanup - Destroy droplet
+      if: always()
+      env:
+        DO_API_KEY: ${{ secrets.DO_API_KEY }}
+      run: |
+        echo "Destroying droplet to save costs..."
+        python3 scripts/do/manage-mutinynet.py destroy || true
+        echo "Droplet destroyed (volume preserved)"
