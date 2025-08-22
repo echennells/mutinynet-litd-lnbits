@@ -127,11 +127,11 @@ jobs:
           fi
         done
     
-    - name: Cleanup - Destroy droplet
-      if: always()
-      env:
-        DO_API_KEY: ${{ secrets.DO_API_KEY }}
-      run: |
-        echo "Destroying droplet to save costs..."
-        python3 scripts/do/manage-mutinynet.py destroy || true
-        echo "Droplet destroyed (volume preserved)"
+    # - name: Cleanup - Destroy droplet
+    #   if: always()
+    #   env:
+    #     DO_API_KEY: ${{ secrets.DO_API_KEY }}
+    #   run: |
+    #     echo "Destroying droplet to save costs..."
+    #     python3 scripts/do/manage-mutinynet.py destroy || true
+    #     echo "Droplet destroyed (volume preserved)"
