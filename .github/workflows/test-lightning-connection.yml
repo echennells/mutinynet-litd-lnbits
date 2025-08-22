@@ -16,6 +16,15 @@ jobs:
       with:
         python-version: '3.10'
     
+    - name: Cache Lightning wallet data
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/lightning-wallet
+        key: lightning-wallet-${{ runner.os }}-litd-v0.14.1-alpha-${{ hashFiles('lnd-init.sh') }}
+        restore-keys: |
+          lightning-wallet-${{ runner.os }}-litd-v0.14.1-alpha-
+    
     - name: Install dependencies
       run: |
         pip install requests python-dotenv
@@ -95,6 +104,9 @@ jobs:
     - name: Start Lightning Terminal locally
       run: |
         echo "Starting Lightning Terminal locally on GitHub Actions runner..."
+        
+        # Create cache directory if it doesn't exist
+        mkdir -p ~/.cache/lightning-wallet
         
         # Set the Bitcoin RPC host to the Digital Ocean droplet
         export BITCOIN_RPC_HOST=${{ env.DROPLET_IP }}

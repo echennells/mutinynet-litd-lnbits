@@ -8,6 +8,7 @@ services:
     volumes:
       - ./lnd-init.sh:/usr/local/bin/lnd-init.sh:ro
       - lnd-data:/root/.lnd
+      - ~/.cache/lightning-wallet:/cache
     environment:
       WALLET_DIR: "/root/.lnd/data/chain/bitcoin/signet"
     entrypoint: ""
@@ -22,6 +23,7 @@ services:
       - lit-data:/root/.lit
       - lnd-data:/root/.lnd
       - tapd-data:/root/.tapd
+      - ~/.cache/lightning-wallet:/cache
     environment:
       LIT_CONFIG: |
         network=signet
