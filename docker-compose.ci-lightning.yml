@@ -66,9 +66,10 @@ services:
       - "8080:8080"
       - "10029:10029"
 
+
   lnbits:
     container_name: "lnbits"
-    image: lnbitsdocker/lnbits:tapd-0.12.13-rc1
+    image: lnbits/lnbits:v1.2.1
     depends_on:
       - lit
     environment:
