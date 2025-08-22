@@ -69,14 +69,18 @@ jobs:
     
     - name: Start Lightning Terminal
       run: |
-        echo "Copying Lightning-only compose file..."
-        scp deploy/docker-compose-lightning-only.yml root@${{ env.DROPLET_IP }}:/opt/mutinynet-litd-lnbits/
+        echo "Copying Lightning compose file..."
+        scp deploy/docker-compose-full.yml root@${{ env.DROPLET_IP }}:/opt/mutinynet-litd-lnbits/
         
-        echo "Checking if Bitcoin is already running..."
-        ssh root@${{ env.DROPLET_IP }} "docker ps | grep bitcoind || echo 'No bitcoind container found'"
+        echo "Checking current containers..."
+        ssh root@${{ env.DROPLET_IP }} "docker ps -a"
         
-        echo "Starting Lightning Terminal (will connect to existing Bitcoin)..."
-        ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose -f docker-compose-lightning-only.yml up -d"
+        echo "Stopping any existing Lightning containers..."
+        ssh root@${{ env.DROPLET_IP }} "docker stop lit lit-init 2>/dev/null || true"
+        ssh root@${{ env.DROPLET_IP }} "docker rm lit lit-init 2>/dev/null || true"
+        
+        echo "Starting Lightning Terminal with existing Bitcoin..."
+        ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose -f docker-compose-full.yml up -d"
         
         # Wait for Lightning to initialize
         echo "Waiting 30 seconds for Lightning to initialize..."
