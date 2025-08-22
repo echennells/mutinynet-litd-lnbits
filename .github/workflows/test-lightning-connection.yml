@@ -100,7 +100,7 @@ jobs:
         export BITCOIN_RPC_HOST=${{ env.DROPLET_IP }}
         
         # Start Lightning services locally
-        docker-compose -f docker-compose.ci-lightning.yml up -d
+        docker compose -f docker-compose.ci-lightning.yml up -d
         
         # Wait for services to initialize
         echo "Waiting 60 seconds for services to initialize..."
