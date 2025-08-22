@@ -1,0 +1,85 @@
+version: '3.8'
+
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+services:
+  lit-init:
+    container_name: "lit-init"
+    image: lightninglabs/lndinit:v0.1.23-beta-lnd-v0.18.5-beta
+    volumes:
+      - /opt/mutinynet-litd-lnbits/lnd-init.sh:/usr/local/bin/lnd-init.sh:ro
+      - /mnt/mutinynet-volume/lnd:/root/.lnd
+    environment:
+      WALLET_DIR: "/root/.lnd/data/chain/bitcoin/signet"
+    entrypoint: ""
+    command: ["/bin/bash", "/usr/local/bin/lnd-init.sh"]
+    networks:
+      - lightning-network
+
+  lit:
+    container_name: "lit"
+    image: lightninglabs/lightning-terminal:v0.14.1-alpha
+    depends_on:
+      - lit-init
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - /mnt/mutinynet-volume/lit:/root/.lit
+      - /mnt/mutinynet-volume/lnd:/root/.lnd
+      - /mnt/mutinynet-volume/tapd:/root/.tapd
+    environment:
+      LIT_CONFIG: |
+        network=signet
+        lnd-mode=integrated
+        uipassword=testpassword123
+        httpslisten=0.0.0.0:8443
+        autopilot.disable=true
+        lnd.rpclisten=0.0.0.0:10009
+        lnd.restlisten=0.0.0.0:8080
+        lnd.tlsextradomain=lit
+        lnd.tlsextradomain=localhost
+        lnd.bitcoin.active=1
+        lnd.bitcoin.node=bitcoind
+        lnd.bitcoin.signet=1
+        # Connect to Bitcoin on the host (not in a container)
+        lnd.bitcoind.rpchost=host.docker.internal:38332
+        lnd.bitcoind.rpcuser=mutinynet
+        lnd.bitcoind.rpcpass=uBoBbUdAmCvNOuXfUW3c
+        lnd.bitcoind.zmqpubrawblock=tcp://host.docker.internal:28332
+        lnd.bitcoind.zmqpubrawtx=tcp://host.docker.internal:28333
+        lnd.rpcmiddleware.enable=true
+        lnd.wallet-unlock-password-file=/root/.lnd/password.txt
+        lnd.listen=0.0.0.0:9735
+        taproot-assets-mode=integrated
+        taproot-assets.network=signet
+        taproot-assets.rpclisten=0.0.0.0:10029
+        taproot-assets.lnd.host=localhost:10029
+        lnd.protocol.option-scid-alias=true
+        lnd.protocol.zero-conf=true
+        lnd.protocol.simple-taproot-chans=true
+        lnd.protocol.simple-taproot-overlay-chans=true
+        lnd.protocol.custom-message=17
+        lnd.accept-keysend=true
+        taproot-assets.experimental.rfq.priceoracleaddress=use_mock_price_oracle_service_promise_to_not_use_on_mainnet
+        taproot-assets.experimental.rfq.mockoracleassetsperbtc=100000
+    entrypoint: >
+      sh -c "echo \"$$LIT_CONFIG\" > /root/.lit/lit.conf && litd"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8443:8443"
+      - "10009:10009"
+      - "9735:9735"
+      - "8080:8080"
+      - "10029:10029"
+    networks:
+      - lightning-network
+
+networks:
+  lightning-network:
+    driver: bridge
