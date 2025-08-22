@@ -207,10 +207,62 @@ jobs:
       run: |
         echo "=== Testing Lightning RPC calls ==="
         
-        # Get wallet balance
+        # First wait for wallet to be fully synced before attempting operations
+        echo "Ensuring wallet is fully synced before testing..."
+        SYNC_RETRY=0
+        
+        while true; do
+          SYNC_RETRY=$((SYNC_RETRY + 1))
+          
+          # Check wallet sync status
+          WALLET_INFO=$(docker exec lit lncli --network signet getinfo 2>&1 || true)
+          SYNCED_TO_CHAIN=$(echo "$WALLET_INFO" | grep -o '"synced_to_chain":[^,]*' | cut -d: -f2 || echo "false")
+          SYNCED_TO_GRAPH=$(echo "$WALLET_INFO" | grep -o '"synced_to_graph":[^,]*' | cut -d: -f2 || echo "false")
+          
+          if [ "$SYNCED_TO_CHAIN" = "true" ]; then
+            echo "✅ Wallet is synced to chain!"
+            break
+          fi
+          
+          # Show progress every 5 attempts (2.5 minutes)
+          if [ $((SYNC_RETRY % 5)) -eq 0 ]; then
+            echo ""
+            echo "===== Wallet Sync Status at $(date) ====="
+            echo "Attempt $SYNC_RETRY (waiting for $((SYNC_RETRY * 30)) seconds)"
+            echo "Synced to chain: $SYNCED_TO_CHAIN"
+            echo "Synced to graph: $SYNCED_TO_GRAPH"
+            
+            # Try to get block height from getinfo
+            BLOCK_HEIGHT=$(echo "$WALLET_INFO" | grep -o '"block_height":[0-9]*' | cut -d: -f2 || echo "unknown")
+            echo "Current block height: $BLOCK_HEIGHT"
+            
+            # Show recent sync activity from logs
+            echo "Recent sync activity:"
+            docker logs lit --tail 10 2>&1 | grep -E "(Syncing|height|block)" || true
+            echo "================================"
+          else
+            echo -n "."
+          fi
+          
+          sleep 30
+        done
+        
+        # Now run the actual tests with retries for each command
+        echo ""
+        echo "Running Lightning RPC tests..."
+        
+        # Get wallet balance with retry
         echo "Checking wallet balance..."
-        BALANCE=$(docker exec lit lncli --network signet walletbalance || true)
-        echo "Wallet balance: $BALANCE"
+        for i in {1..3}; do
+          BALANCE=$(docker exec lit lncli --network signet walletbalance 2>&1 || true)
+          if echo "$BALANCE" | grep -q "total_balance"; then
+            echo "Wallet balance: $BALANCE"
+            break
+          else
+            echo "Attempt $i/3 failed: $BALANCE"
+            sleep 10
+          fi
+        done
         
         # Get list of peers
         echo "Checking Lightning peers..."
@@ -224,7 +276,7 @@ jobs:
         
         # Check graph sync status
         echo "Checking graph sync..."
-        GRAPH_INFO=$(docker exec lit lncli --network signet describegraph | head -20 || true)
+        GRAPH_INFO=$(docker exec lit lncli --network signet describegraph 2>&1 | head -20 || true)
         echo "Graph info (first 20 lines): $GRAPH_INFO"
         
         # Get network info  
@@ -232,10 +284,29 @@ jobs:
         NETWORK_INFO=$(docker exec lit lncli --network signet getnetworkinfo || true)
         echo "Network info: $NETWORK_INFO"
         
-        # Generate a new address for funding
+        # Generate a new address for funding with retries
         echo "Generating Lightning address..."
-        NEW_ADDR=$(docker exec lit lncli --network signet newaddress p2wkh | grep address | cut -d'"' -f4 || true)
-        echo "New address for funding: $NEW_ADDR"
+        for i in {1..5}; do
+          echo "Attempt $i/5 to generate address..."
+          NEW_ADDR=$(timeout 30 docker exec lit lncli --network signet newaddress p2wkh 2>&1 || echo "timeout")
+          
+          if echo "$NEW_ADDR" | grep -q "address"; then
+            ADDR=$(echo "$NEW_ADDR" | grep address | cut -d'"' -f4)
+            echo "New address for funding: $ADDR"
+            break
+          elif [ "$NEW_ADDR" = "timeout" ]; then
+            echo "Command timed out after 30 seconds, retrying..."
+            sleep 10
+          else
+            echo "Unexpected response: $NEW_ADDR"
+            sleep 10
+          fi
+          
+          if [ $i -eq 5 ]; then
+            echo "⚠️ Could not generate address after 5 attempts"
+            echo "This may indicate the wallet is still syncing"
+          fi
+        done
         
         echo "✅ Lightning RPC tests completed!"
     
