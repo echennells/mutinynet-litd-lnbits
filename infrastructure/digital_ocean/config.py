@@ -47,7 +47,7 @@ SSH_PORT = 22
 SSH_TIMEOUT = 120  # 2 minutes for high jitter networks
 
 # Paths
-REMOTE_WORKSPACE = "/opt/mutinynet"
+REMOTE_WORKSPACE = "/opt/mutinynet-litd-lnbits"
 REMOTE_DATA_DIR = "/mnt/mutinynet-volume"
 REMOTE_BITCOIN_DATA = f"{REMOTE_DATA_DIR}/bitcoin"
 
