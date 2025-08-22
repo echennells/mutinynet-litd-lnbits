@@ -1,0 +1,96 @@
+version: '3.8'
+
+# CI configuration - Lightning services run on GitHub Actions, connect to external Bitcoin on DO
+services:
+  lit-init:
+    container_name: "lit-init"
+    image: lightninglabs/lndinit:v0.1.23-beta-lnd-v0.18.5-beta
+    volumes:
+      - ./lnd-init.sh:/usr/local/bin/lnd-init.sh:ro
+      - lnd-data:/root/.lnd
+    environment:
+      WALLET_DIR: "/root/.lnd/data/chain/bitcoin/signet"
+    entrypoint: ""
+    command: ["/bin/bash", "/usr/local/bin/lnd-init.sh"]
+
+  lit:
+    container_name: "lit"
+    image: lightninglabs/lightning-terminal:v0.14.1-alpha
+    depends_on:
+      - lit-init
+    volumes:
+      - lit-data:/root/.lit
+      - lnd-data:/root/.lnd
+      - tapd-data:/root/.tapd
+    environment:
+      LIT_CONFIG: |
+        network=signet
+        lnd-mode=integrated
+        uipassword=testpassword123
+        httpslisten=0.0.0.0:8443
+        autopilot.disable=true
+        lnd.rpclisten=0.0.0.0:10009
+        lnd.restlisten=0.0.0.0:8080
+        lnd.tlsextradomain=lit
+        lnd.tlsextradomain=localhost
+        lnd.bitcoin.active=1
+        lnd.bitcoin.node=bitcoind
+        lnd.bitcoin.signet=1
+        # Connect to external Bitcoin node on Digital Ocean
+        lnd.bitcoind.rpchost=${BITCOIN_RPC_HOST}:38332
+        lnd.bitcoind.rpcuser=mutinynet
+        lnd.bitcoind.rpcpass=uBoBbUdAmCvNOuXfUW3c
+        lnd.bitcoind.zmqpubrawblock=tcp://${BITCOIN_RPC_HOST}:28332
+        lnd.bitcoind.zmqpubrawtx=tcp://${BITCOIN_RPC_HOST}:28333
+        lnd.rpcmiddleware.enable=true
+        lnd.wallet-unlock-password-file=/root/.lnd/password.txt
+        lnd.listen=0.0.0.0:9735
+        taproot-assets-mode=integrated
+        taproot-assets.network=signet
+        taproot-assets.rpclisten=0.0.0.0:10029
+        taproot-assets.lnd.host=localhost:10029
+        lnd.protocol.option-scid-alias=true
+        lnd.protocol.zero-conf=true
+        lnd.protocol.simple-taproot-chans=true
+        lnd.protocol.simple-taproot-overlay-chans=true
+        lnd.protocol.custom-message=17
+        lnd.accept-keysend=true
+        taproot-assets.experimental.rfq.priceoracleaddress=use_mock_price_oracle_service_promise_to_not_use_on_mainnet
+        taproot-assets.experimental.rfq.mockoracleassetsperbtc=100000
+    entrypoint: >
+      sh -c "echo \"$$LIT_CONFIG\" > /root/.lit/lit.conf && litd"
+    ports:
+      - "8443:8443"
+      - "10009:10009"
+      - "9735:9735"
+      - "8080:8080"
+      - "10029:10029"
+
+  lnbits:
+    container_name: "lnbits"
+    image: lnbitsdocker/lnbits:tapd-0.12.13-rc1
+    depends_on:
+      - lit
+    environment:
+      LNBITS_BACKEND_WALLET_CLASS: LndRestWallet
+      LND_REST_ENDPOINT: http://lit:8080
+      LND_REST_CERT: /root/.lnd/tls.cert
+      LND_REST_MACAROON: /root/.lnd/data/chain/bitcoin/signet/admin.macaroon
+      LNBITS_SITE_TITLE: "Mutinynet LNbits"
+      LNBITS_SITE_TAGLINE: "Lightning on Mutinynet Signet"
+      LNBITS_DATA_FOLDER: /data
+      TAPD_URL: lit:10029
+      TAPD_CERT: /root/.lnd/tls.cert
+      TAPD_MACAROON: /root/.tapd/data/signet/admin.macaroon
+    volumes:
+      - lnbits-data:/data
+      - lnd-data:/root/.lnd:ro
+      - tapd-data:/root/.tapd:ro
+    ports:
+      - "5005:5000"
+
+volumes:
+  lnd-data:
+  lit-data:
+  tapd-data:
+  lnbits-data:

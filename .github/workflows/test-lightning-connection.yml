@@ -67,35 +67,60 @@ jobs:
         # Add host to known_hosts
         ssh-keyscan -H ${{ env.DROPLET_IP }} >> ~/.ssh/known_hosts 2>/dev/null
     
-    - name: Start Lightning Terminal
+    - name: Verify Bitcoin is running on Digital Ocean
       run: |
-        echo "Copying Lightning compose file..."
-        scp deploy/docker-compose-full.yml root@${{ env.DROPLET_IP }}:/opt/mutinynet-litd-lnbits/
+        echo "Checking Bitcoin on Digital Ocean droplet..."
         
-        echo "Checking current containers..."
-        ssh root@${{ env.DROPLET_IP }} "docker ps -a"
+        # Test RPC connection
+        BLOCK_COUNT=$(ssh root@${{ env.DROPLET_IP }} "docker exec bitcoind bitcoin-cli -rpcuser=mutinynet -rpcpassword=uBoBbUdAmCvNOuXfUW3c getblockcount" || echo "error")
         
-        echo "Cleaning up any existing Lightning containers and networks..."
-        ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose -f docker-compose-full.yml down --remove-orphans 2>/dev/null || true"
-        ssh root@${{ env.DROPLET_IP }} "docker rm -f lit lit-init 2>/dev/null || true"
+        if [ "$BLOCK_COUNT" = "error" ]; then
+          echo "❌ Failed to connect to Bitcoin RPC"
+          ssh root@${{ env.DROPLET_IP }} "docker ps"
+          ssh root@${{ env.DROPLET_IP }} "docker logs bitcoind --tail 50"
+          exit 1
+        else
+          echo "✅ Bitcoin is running, block height: $BLOCK_COUNT"
+        fi
         
-        echo "Starting fresh Bitcoin + Lightning Terminal stack..."
-        ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose -f docker-compose-full.yml up -d"
+        # Test ZMQ ports are accessible
+        for port in 28332 28333 38332; do
+          if nc -zv ${{ env.DROPLET_IP }} $port 2>/dev/null; then
+            echo "✅ Port $port is accessible"
+          else
+            echo "❌ Port $port is not accessible"
+          fi
+        done
+    
+    - name: Start Lightning Terminal locally
+      run: |
+        echo "Starting Lightning Terminal locally on GitHub Actions runner..."
+        
+        # Set the Bitcoin RPC host to the Digital Ocean droplet
+        export BITCOIN_RPC_HOST=${{ env.DROPLET_IP }}
+        
+        # Start Lightning services locally
+        docker-compose -f docker-compose.ci-lightning.yml up -d
         
         # Wait for services to initialize
         echo "Waiting 60 seconds for services to initialize..."
         sleep 60
+        
+        # Check status
+        docker ps
+        docker logs lit-init
+        docker logs lit --tail 20
     
     - name: Test Lightning connection
       run: |
-        echo "Testing Lightning Terminal..."
+        echo "Testing Lightning Terminal running locally..."
         
         # Test if Lightning Terminal UI responds
-        if ssh root@${{ env.DROPLET_IP }} "curl -k -s https://localhost:8443 | grep -q 'Lightning Terminal'"; then
+        if curl -k -s https://localhost:8443 | grep -q 'Lightning Terminal'; then
           echo "✅ Lightning Terminal UI is running!"
         else
           echo "❌ Lightning Terminal UI not responding"
-          ssh root@${{ env.DROPLET_IP }} "docker logs lit --tail 50"
+          docker logs lit --tail 50
           exit 1
         fi
         
@@ -108,7 +133,7 @@ jobs:
           RETRY=$((RETRY + 1))
           echo "Attempt $RETRY/$MAX_RETRIES..."
           
-          NODE_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet getinfo 2>&1" || true)
+          NODE_INFO=$(docker exec lit lncli --network signet getinfo 2>&1 || true)
           
           if echo "$NODE_INFO" | grep -q "identity_pubkey"; then
             echo "$NODE_INFO"
@@ -126,7 +151,7 @@ jobs:
           
           if [ $RETRY -eq $MAX_RETRIES ]; then
             echo "❌ Failed to connect to LND after $MAX_RETRIES attempts (10 minutes)"
-            ssh root@${{ env.DROPLET_IP }} "docker logs lit --tail 50"
+            docker logs lit --tail 50
             exit 1
           fi
         done
@@ -137,32 +162,32 @@ jobs:
         
         # Get wallet balance
         echo "Checking wallet balance..."
-        BALANCE=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet walletbalance" || true)
+        BALANCE=$(docker exec lit lncli --network signet walletbalance || true)
         echo "Wallet balance: $BALANCE"
         
         # Get list of peers
         echo "Checking Lightning peers..."
-        PEERS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet listpeers" || true)
+        PEERS=$(docker exec lit lncli --network signet listpeers || true)
         echo "Peers: $PEERS"
         
         # Get channels
         echo "Checking channels..."
-        CHANNELS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet listchannels" || true)
+        CHANNELS=$(docker exec lit lncli --network signet listchannels || true)
         echo "Channels: $CHANNELS"
         
         # Check graph sync status
         echo "Checking graph sync..."
-        GRAPH_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet describegraph | head -20" || true)
+        GRAPH_INFO=$(docker exec lit lncli --network signet describegraph | head -20 || true)
         echo "Graph info (first 20 lines): $GRAPH_INFO"
         
         # Get network info  
         echo "Getting network info..."
-        NETWORK_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet getnetworkinfo" || true)
+        NETWORK_INFO=$(docker exec lit lncli --network signet getnetworkinfo || true)
         echo "Network info: $NETWORK_INFO"
         
         # Generate a new address for funding
         echo "Generating Lightning address..."
-        NEW_ADDR=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet newaddress p2wkh | grep address | cut -d'\"' -f4" || true)
+        NEW_ADDR=$(docker exec lit lncli --network signet newaddress p2wkh | grep address | cut -d'"' -f4 || true)
         echo "New address for funding: $NEW_ADDR"
         
         echo "✅ Lightning RPC tests completed!"
@@ -177,7 +202,7 @@ jobs:
         
         # Check graph stats
         echo "=== Graph Statistics ==="
-        GRAPH_STATS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet getnetworkinfo" || true)
+        GRAPH_STATS=$(docker exec lit lncli --network signet getnetworkinfo || true)
         
         NUM_NODES=$(echo "$GRAPH_STATS" | grep num_nodes | grep -o '[0-9]*' | head -1 || echo "0")
         NUM_CHANNELS=$(echo "$GRAPH_STATS" | grep num_channels | grep -o '[0-9]*' | head -1 || echo "0")
@@ -199,17 +224,17 @@ jobs:
         # First, debug the certificate paths
         echo "Debugging Taproot Assets certificate paths..."
         echo "Checking /root/.tapd directory structure:"
-        ssh root@${{ env.DROPLET_IP }} "docker exec lit ls -la /root/.tapd/ 2>&1" || true
+        docker exec lit ls -la /root/.tapd/ 2>&1 || true
         
         echo "Checking /root/.lnd directory structure:"
-        ssh root@${{ env.DROPLET_IP }} "docker exec lit ls -la /root/.lnd/ 2>&1" || true
+        docker exec lit ls -la /root/.lnd/ 2>&1 || true
         
         echo "Checking if tls.cert exists in .lnd:"
-        ssh root@${{ env.DROPLET_IP }} "docker exec lit ls -la /root/.lnd/tls.cert 2>&1" || true
+        docker exec lit ls -la /root/.lnd/tls.cert 2>&1 || true
         
         # Try using LND's cert for tapd
         echo "Attempting to use LND's TLS cert for tapcli..."
-        TAPD_WITH_LND_CERT=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit tapcli --network signet --tlscertpath=/root/.lnd/tls.cert getinfo 2>&1" || true)
+        TAPD_WITH_LND_CERT=$(docker exec lit tapcli --network signet --tlscertpath=/root/.lnd/tls.cert getinfo 2>&1 || true)
         
         if echo "$TAPD_WITH_LND_CERT" | grep -q "version"; then
           echo "✅ Taproot Assets daemon is running (using LND cert)!"
@@ -217,14 +242,14 @@ jobs:
           
           # List assets with correct cert path
           echo "Listing taproot assets..."
-          ASSETS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit tapcli --network signet --tlscertpath=/root/.lnd/tls.cert assets list 2>&1" || true)
+          ASSETS=$(docker exec lit tapcli --network signet --tlscertpath=/root/.lnd/tls.cert assets list 2>&1 || true)
           echo "Assets: $ASSETS"
         else
           echo "⚠️ Taproot Assets may not be ready even with LND cert: $TAPD_WITH_LND_CERT"
           
           # Check tapd logs for more info
           echo "Checking tapd logs for errors:"
-          ssh root@${{ env.DROPLET_IP }} "docker exec lit sh -c 'grep -i tapd /root/.lit/logs/litd.log | tail -20'" 2>&1 || true
+          docker exec lit sh -c 'grep -i tapd /root/.lit/logs/litd.log | tail -20' 2>&1 || true
         fi
     
     # - name: Cleanup - Destroy droplet
