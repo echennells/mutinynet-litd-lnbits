@@ -210,6 +210,8 @@ jobs:
         # First wait for wallet to be fully synced before attempting operations
         echo "Ensuring wallet is fully synced before testing..."
         SYNC_RETRY=0
+        LAST_HEIGHT=0
+        STALL_COUNT=0
         
         while true; do
           SYNC_RETRY=$((SYNC_RETRY + 1))
@@ -218,27 +220,67 @@ jobs:
           WALLET_INFO=$(docker exec lit lncli --network signet getinfo 2>&1 || true)
           SYNCED_TO_CHAIN=$(echo "$WALLET_INFO" | grep -o '"synced_to_chain":[^,]*' | cut -d: -f2 || echo "false")
           SYNCED_TO_GRAPH=$(echo "$WALLET_INFO" | grep -o '"synced_to_graph":[^,]*' | cut -d: -f2 || echo "false")
+          BLOCK_HEIGHT=$(echo "$WALLET_INFO" | grep -o '"block_height":[0-9]*' | cut -d: -f2 || echo "0")
           
           if [ "$SYNCED_TO_CHAIN" = "true" ]; then
-            echo "✅ Wallet is synced to chain!"
+            echo "✅ Wallet is synced to chain at block $BLOCK_HEIGHT!"
             break
           fi
           
-          # Show progress every 5 attempts (2.5 minutes)
-          if [ $((SYNC_RETRY % 5)) -eq 0 ]; then
+          # Check for stalled sync
+          if [ "$BLOCK_HEIGHT" = "$LAST_HEIGHT" ] && [ "$BLOCK_HEIGHT" != "0" ]; then
+            STALL_COUNT=$((STALL_COUNT + 1))
+            if [ $STALL_COUNT -gt 10 ]; then
+              echo "⚠️ WARNING: Sync appears stalled at block $BLOCK_HEIGHT for 5 minutes"
+              echo "Checking detailed logs..."
+              docker logs lit --tail 50 2>&1 | grep -E "(ERR|WRN|error|warn|fail)" || true
+            fi
+          else
+            STALL_COUNT=0
+            if [ "$LAST_HEIGHT" != "0" ] && [ "$BLOCK_HEIGHT" != "0" ]; then
+              BLOCKS_SYNCED=$((BLOCK_HEIGHT - LAST_HEIGHT))
+              echo "Progress: Synced $BLOCKS_SYNCED blocks (now at $BLOCK_HEIGHT)"
+            fi
+          fi
+          LAST_HEIGHT=$BLOCK_HEIGHT
+          
+          # Show detailed progress every 2 attempts (1 minute)
+          if [ $((SYNC_RETRY % 2)) -eq 0 ]; then
             echo ""
             echo "===== Wallet Sync Status at $(date) ====="
-            echo "Attempt $SYNC_RETRY (waiting for $((SYNC_RETRY * 30)) seconds)"
+            echo "Attempt $SYNC_RETRY (running for $((SYNC_RETRY * 30)) seconds / $((SYNC_RETRY / 2)) minutes)"
             echo "Synced to chain: $SYNCED_TO_CHAIN"
             echo "Synced to graph: $SYNCED_TO_GRAPH"
-            
-            # Try to get block height from getinfo
-            BLOCK_HEIGHT=$(echo "$WALLET_INFO" | grep -o '"block_height":[0-9]*' | cut -d: -f2 || echo "unknown")
             echo "Current block height: $BLOCK_HEIGHT"
             
-            # Show recent sync activity from logs
-            echo "Recent sync activity:"
-            docker logs lit --tail 10 2>&1 | grep -E "(Syncing|height|block)" || true
+            # Get more detailed sync info from logs
+            echo ""
+            echo "Last 5 sync-related log entries:"
+            docker logs lit --tail 100 2>&1 | grep -E "(LNWL|LTND|height|Rescan|Catch)" | tail -5 || echo "No sync logs found"
+            
+            # Check Bitcoin connection
+            echo ""
+            echo "Bitcoin backend status:"
+            docker logs lit --tail 50 2>&1 | grep -E "(BTCN|backend|bitcoin)" | tail -3 || echo "No Bitcoin logs found"
+            
+            # Get wallet rescan progress if available
+            echo ""
+            echo "Rescan progress:"
+            docker logs lit --tail 200 2>&1 | grep -E "Rescanned through block" | tail -3 || echo "No rescan progress found"
+            
+            # Check current target height
+            TARGET_HEIGHT=$(docker logs lit --tail 200 2>&1 | grep -oE "start_height=[0-9]+" | tail -1 | cut -d= -f2 || echo "unknown")
+            if [ "$TARGET_HEIGHT" != "unknown" ] && [ "$BLOCK_HEIGHT" != "0" ]; then
+              REMAINING=$((TARGET_HEIGHT - BLOCK_HEIGHT))
+              echo "Target height: $TARGET_HEIGHT (${REMAINING} blocks remaining)"
+              
+              # Estimate time remaining if we have progress
+              if [ "$BLOCKS_SYNCED" -gt 0 ]; then
+                EST_MINUTES=$((REMAINING / BLOCKS_SYNCED))
+                echo "Estimated time remaining: ~${EST_MINUTES} minutes"
+              fi
+            fi
+            
             echo "================================"
           else
             echo -n "."
