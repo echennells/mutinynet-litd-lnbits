@@ -167,9 +167,9 @@ jobs:
       run: |
         echo "Waiting for Lightning graph to sync..."
         
-        # Give it 2 minutes to sync some graph data
-        echo "Waiting 2 minutes for initial graph sync..."
-        sleep 120
+        # Give it 5 minutes to sync some graph data
+        echo "Waiting 5 minutes for initial graph sync..."
+        sleep 300
         
         # Check graph stats
         echo "=== Graph Statistics ==="
@@ -185,27 +185,43 @@ jobs:
           echo "✅ Graph has synced with $NUM_NODES nodes"
         else
           echo "⚠️ Graph may not be fully synced yet (0 nodes found)"
+          echo "This could be normal for mutinynet if there are no other active nodes"
         fi
     
     - name: Test Taproot Assets
       run: |
         echo "=== Testing Taproot Assets daemon ==="
         
-        # Check tapd status
-        echo "Checking tapd status..."
-        TAPD_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit tapcli --network signet getinfo 2>&1" || true)
+        # First, debug the certificate paths
+        echo "Debugging Taproot Assets certificate paths..."
+        echo "Checking /root/.tapd directory structure:"
+        ssh root@${{ env.DROPLET_IP }} "docker exec lit ls -la /root/.tapd/ 2>&1" || true
         
-        if echo "$TAPD_INFO" | grep -q "version"; then
-          echo "Taproot Assets info: $TAPD_INFO"
-          echo "✅ Taproot Assets daemon is running!"
+        echo "Checking /root/.lnd directory structure:"
+        ssh root@${{ env.DROPLET_IP }} "docker exec lit ls -la /root/.lnd/ 2>&1" || true
+        
+        echo "Checking if tls.cert exists in .lnd:"
+        ssh root@${{ env.DROPLET_IP }} "docker exec lit ls -la /root/.lnd/tls.cert 2>&1" || true
+        
+        # Try using LND's cert for tapd
+        echo "Attempting to use LND's TLS cert for tapcli..."
+        TAPD_WITH_LND_CERT=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit tapcli --network signet --tlscertpath=/root/.lnd/tls.cert getinfo 2>&1" || true)
+        
+        if echo "$TAPD_WITH_LND_CERT" | grep -q "version"; then
+          echo "✅ Taproot Assets daemon is running (using LND cert)!"
+          echo "Taproot Assets info: $TAPD_WITH_LND_CERT"
+          
+          # List assets with correct cert path
+          echo "Listing taproot assets..."
+          ASSETS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit tapcli --network signet --tlscertpath=/root/.lnd/tls.cert assets list 2>&1" || true)
+          echo "Assets: $ASSETS"
         else
-          echo "⚠️ Taproot Assets may not be ready: $TAPD_INFO"
+          echo "⚠️ Taproot Assets may not be ready even with LND cert: $TAPD_WITH_LND_CERT"
+          
+          # Check tapd logs for more info
+          echo "Checking tapd logs for errors:"
+          ssh root@${{ env.DROPLET_IP }} "docker exec lit sh -c 'grep -i tapd /root/.lit/logs/litd.log | tail -20'" 2>&1 || true
         fi
-        
-        # List assets
-        echo "Listing taproot assets..."
-        ASSETS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit tapcli --network signet assets list" || true)
-        echo "Assets: $ASSETS"
     
     # - name: Cleanup - Destroy droplet
     #   if: always()
