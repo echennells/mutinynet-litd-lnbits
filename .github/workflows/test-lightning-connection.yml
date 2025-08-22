@@ -75,16 +75,16 @@ jobs:
         echo "Checking current containers..."
         ssh root@${{ env.DROPLET_IP }} "docker ps -a"
         
-        echo "Stopping any existing Lightning containers..."
-        ssh root@${{ env.DROPLET_IP }} "docker stop lit lit-init 2>/dev/null || true"
-        ssh root@${{ env.DROPLET_IP }} "docker rm lit lit-init 2>/dev/null || true"
+        echo "Cleaning up any existing Lightning containers and networks..."
+        ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose -f docker-compose-full.yml down --remove-orphans 2>/dev/null || true"
+        ssh root@${{ env.DROPLET_IP }} "docker rm -f lit lit-init 2>/dev/null || true"
         
-        echo "Starting Lightning Terminal with existing Bitcoin..."
+        echo "Starting fresh Bitcoin + Lightning Terminal stack..."
         ssh root@${{ env.DROPLET_IP }} "cd /opt/mutinynet-litd-lnbits && docker-compose -f docker-compose-full.yml up -d"
         
-        # Wait for Lightning to initialize
-        echo "Waiting 30 seconds for Lightning to initialize..."
-        sleep 30
+        # Wait for services to initialize
+        echo "Waiting 60 seconds for services to initialize..."
+        sleep 60
     
     - name: Test Lightning connection
       run: |
