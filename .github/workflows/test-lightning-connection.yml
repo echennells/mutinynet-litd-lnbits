@@ -218,14 +218,34 @@ jobs:
           
           # Check wallet sync status
           WALLET_INFO=$(docker exec lit lncli --network signet getinfo 2>&1 || true)
+          
+          # Debug: Show raw getinfo output on first attempt
+          if [ $SYNC_RETRY -eq 1 ]; then
+            echo "Debug - Raw getinfo output:"
+            echo "$WALLET_INFO" | head -20
+          fi
+          
           SYNCED_TO_CHAIN=$(echo "$WALLET_INFO" | grep -o '"synced_to_chain":[^,]*' | cut -d: -f2 || echo "false")
           SYNCED_TO_GRAPH=$(echo "$WALLET_INFO" | grep -o '"synced_to_graph":[^,]*' | cut -d: -f2 || echo "false")
-          BLOCK_HEIGHT=$(echo "$WALLET_INFO" | grep -o '"block_height":[0-9]*' | cut -d: -f2 || echo "0")
+          
+          # More robust block height extraction
+          BLOCK_HEIGHT=$(echo "$WALLET_INFO" | grep -o '"block_height":[0-9]*' | cut -d: -f2 || echo "")
+          if [ -z "$BLOCK_HEIGHT" ]; then
+            # Try alternative parsing if block_height not found
+            BLOCK_HEIGHT=$(echo "$WALLET_INFO" | grep -oE 'block_height":\s*[0-9]+' | grep -o '[0-9]*' || echo "0")
+          fi
+          # Ensure it's a number
+          if ! [[ "$BLOCK_HEIGHT" =~ ^[0-9]+$ ]]; then
+            BLOCK_HEIGHT="0"
+          fi
           
           if [ "$SYNCED_TO_CHAIN" = "true" ]; then
             echo "✅ Wallet is synced to chain at block $BLOCK_HEIGHT!"
             break
           fi
+          
+          # Initialize BLOCKS_SYNCED
+          BLOCKS_SYNCED=0
           
           # Check for stalled sync
           if [ "$BLOCK_HEIGHT" = "$LAST_HEIGHT" ] && [ "$BLOCK_HEIGHT" != "0" ]; then
@@ -237,7 +257,7 @@ jobs:
             fi
           else
             STALL_COUNT=0
-            if [ "$LAST_HEIGHT" != "0" ] && [ "$BLOCK_HEIGHT" != "0" ]; then
+            if [ "$LAST_HEIGHT" != "0" ] && [ "$BLOCK_HEIGHT" != "0" ] && [ "$BLOCK_HEIGHT" -gt "$LAST_HEIGHT" ]; then
               BLOCKS_SYNCED=$((BLOCK_HEIGHT - LAST_HEIGHT))
               echo "Progress: Synced $BLOCKS_SYNCED blocks (now at $BLOCK_HEIGHT)"
             fi
@@ -269,16 +289,18 @@ jobs:
             docker logs lit --tail 200 2>&1 | grep -E "Rescanned through block" | tail -3 || echo "No rescan progress found"
             
             # Check current target height
-            TARGET_HEIGHT=$(docker logs lit --tail 200 2>&1 | grep -oE "start_height=[0-9]+" | tail -1 | cut -d= -f2 || echo "unknown")
-            if [ "$TARGET_HEIGHT" != "unknown" ] && [ "$BLOCK_HEIGHT" != "0" ]; then
+            TARGET_HEIGHT=$(docker logs lit --tail 200 2>&1 | grep -oE "start_height=[0-9]+" | tail -1 | cut -d= -f2 || echo "0")
+            if [ "$TARGET_HEIGHT" != "0" ] && [ "$BLOCK_HEIGHT" != "0" ] && [ -n "$TARGET_HEIGHT" ] && [ -n "$BLOCK_HEIGHT" ]; then
               REMAINING=$((TARGET_HEIGHT - BLOCK_HEIGHT))
               echo "Target height: $TARGET_HEIGHT (${REMAINING} blocks remaining)"
               
               # Estimate time remaining if we have progress
-              if [ "$BLOCKS_SYNCED" -gt 0 ]; then
+              if [ -n "$BLOCKS_SYNCED" ] && [ "$BLOCKS_SYNCED" -gt 0 ] 2>/dev/null; then
                 EST_MINUTES=$((REMAINING / BLOCKS_SYNCED))
                 echo "Estimated time remaining: ~${EST_MINUTES} minutes"
               fi
+            elif [ "$TARGET_HEIGHT" != "0" ]; then
+              echo "Target height: $TARGET_HEIGHT (current height unknown)"
             fi
             
             echo "================================"
