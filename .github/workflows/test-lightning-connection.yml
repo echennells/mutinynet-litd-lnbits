@@ -127,6 +127,86 @@ jobs:
           fi
         done
     
+    - name: Test Lightning functionality
+      run: |
+        echo "=== Testing Lightning RPC calls ==="
+        
+        # Get wallet balance
+        echo "Checking wallet balance..."
+        BALANCE=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet walletbalance" || true)
+        echo "Wallet balance: $BALANCE"
+        
+        # Get list of peers
+        echo "Checking Lightning peers..."
+        PEERS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet listpeers" || true)
+        echo "Peers: $PEERS"
+        
+        # Get channels
+        echo "Checking channels..."
+        CHANNELS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet listchannels" || true)
+        echo "Channels: $CHANNELS"
+        
+        # Check graph sync status
+        echo "Checking graph sync..."
+        GRAPH_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet describegraph | head -20" || true)
+        echo "Graph info (first 20 lines): $GRAPH_INFO"
+        
+        # Get network info  
+        echo "Getting network info..."
+        NETWORK_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet getnetworkinfo" || true)
+        echo "Network info: $NETWORK_INFO"
+        
+        # Generate a new address for funding
+        echo "Generating Lightning address..."
+        NEW_ADDR=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet newaddress p2wkh | grep address | cut -d'\"' -f4" || true)
+        echo "New address for funding: $NEW_ADDR"
+        
+        echo "✅ Lightning RPC tests completed!"
+    
+    - name: Wait for graph sync
+      run: |
+        echo "Waiting for Lightning graph to sync..."
+        
+        # Give it 2 minutes to sync some graph data
+        echo "Waiting 2 minutes for initial graph sync..."
+        sleep 120
+        
+        # Check graph stats
+        echo "=== Graph Statistics ==="
+        GRAPH_STATS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet getnetworkinfo" || true)
+        
+        NUM_NODES=$(echo "$GRAPH_STATS" | grep num_nodes | grep -o '[0-9]*' | head -1 || echo "0")
+        NUM_CHANNELS=$(echo "$GRAPH_STATS" | grep num_channels | grep -o '[0-9]*' | head -1 || echo "0")
+        
+        echo "Nodes in graph: $NUM_NODES"
+        echo "Channels in graph: $NUM_CHANNELS"
+        
+        if [ "$NUM_NODES" -gt "0" ]; then
+          echo "✅ Graph has synced with $NUM_NODES nodes"
+        else
+          echo "⚠️ Graph may not be fully synced yet (0 nodes found)"
+        fi
+    
+    - name: Test Taproot Assets
+      run: |
+        echo "=== Testing Taproot Assets daemon ==="
+        
+        # Check tapd status
+        echo "Checking tapd status..."
+        TAPD_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit tapcli --network signet getinfo 2>&1" || true)
+        
+        if echo "$TAPD_INFO" | grep -q "version"; then
+          echo "Taproot Assets info: $TAPD_INFO"
+          echo "✅ Taproot Assets daemon is running!"
+        else
+          echo "⚠️ Taproot Assets may not be ready: $TAPD_INFO"
+        fi
+        
+        # List assets
+        echo "Listing taproot assets..."
+        ASSETS=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit tapcli --network signet assets list" || true)
+        echo "Assets: $ASSETS"
+    
     # - name: Cleanup - Destroy droplet
     #   if: always()
     #   env:
