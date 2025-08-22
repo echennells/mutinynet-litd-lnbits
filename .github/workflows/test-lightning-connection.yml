@@ -95,21 +95,37 @@ jobs:
           exit 1
         fi
         
-        # Test LND getinfo
+        # Test LND getinfo with retries
         echo "Testing LND via lncli..."
-        NODE_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet getinfo")
-        echo "$NODE_INFO"
+        MAX_RETRIES=10
+        RETRY=0
         
-        # Extract node pubkey
-        NODE_PUBKEY=$(echo "$NODE_INFO" | grep identity_pubkey | cut -d'"' -f4)
-        echo "Lightning node pubkey: $NODE_PUBKEY"
-        
-        if [ -n "$NODE_PUBKEY" ]; then
-          echo "✅ Lightning node is operational!"
-        else
-          echo "❌ Failed to get node info"
-          exit 1
-        fi
+        while [ $RETRY -lt $MAX_RETRIES ]; do
+          RETRY=$((RETRY + 1))
+          echo "Attempt $RETRY/$MAX_RETRIES..."
+          
+          NODE_INFO=$(ssh root@${{ env.DROPLET_IP }} "docker exec lit lncli --network signet getinfo 2>&1" || true)
+          
+          if echo "$NODE_INFO" | grep -q "identity_pubkey"; then
+            echo "$NODE_INFO"
+            NODE_PUBKEY=$(echo "$NODE_INFO" | grep identity_pubkey | cut -d'"' -f4)
+            echo "Lightning node pubkey: $NODE_PUBKEY"
+            echo "✅ Lightning node is operational!"
+            break
+          elif echo "$NODE_INFO" | grep -q "starting up"; then
+            echo "LND still starting up, waiting 10 seconds..."
+            sleep 10
+          else
+            echo "Unexpected response: $NODE_INFO"
+            sleep 10
+          fi
+          
+          if [ $RETRY -eq $MAX_RETRIES ]; then
+            echo "❌ Failed to connect to LND after $MAX_RETRIES attempts"
+            ssh root@${{ env.DROPLET_IP }} "docker logs lit --tail 50"
+            exit 1
+          fi
+        done
     
     - name: Cleanup - Destroy droplet
       if: always()
