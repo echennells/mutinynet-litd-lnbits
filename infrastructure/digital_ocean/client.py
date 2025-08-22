@@ -281,18 +281,6 @@ echo "Setup complete! Bitcoin starting..."
     
     def destroy_droplet_keep_volume(self, droplet_id: int) -> None:
         """Destroy droplet but keep the volume for next time"""
-        from .config import SNAPSHOT_BEFORE_DESTROY
-        
-        if SNAPSHOT_BEFORE_DESTROY:
-            print(f"Creating snapshot before destroying droplet...")
-            snapshot_name = f"mutinynet-snapshot-{int(time.time())}"
-            self._request("POST", f"droplets/{droplet_id}/actions", {
-                "type": "snapshot",
-                "name": snapshot_name
-            })
-            # Wait for snapshot to complete
-            time.sleep(60)
-        
         print(f"Destroying droplet {droplet_id} (keeping volume)...")
         self._request("DELETE", f"droplets/{droplet_id}")
     

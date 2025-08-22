@@ -70,7 +70,6 @@ RESERVED_IP_NAME = "mutinynet-ip"
 
 # Cost Optimization Settings
 AUTO_SHUTDOWN_HOURS = 2  # Auto shutdown after 2 hours of inactivity
-SNAPSHOT_BEFORE_DESTROY = True  # Create snapshot before destroying droplet
 
 # Bitcoin RPC Credentials (generate random ones if not set)
 import secrets
