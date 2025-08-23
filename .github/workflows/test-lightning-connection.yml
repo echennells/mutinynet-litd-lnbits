@@ -225,8 +225,9 @@ jobs:
             echo "$WALLET_INFO" | head -20
           fi
           
-          SYNCED_TO_CHAIN=$(echo "$WALLET_INFO" | grep -o '"synced_to_chain":[^,]*' | cut -d: -f2 || echo "false")
-          SYNCED_TO_GRAPH=$(echo "$WALLET_INFO" | grep -o '"synced_to_graph":[^,]*' | cut -d: -f2 || echo "false")
+          # Extract and trim whitespace from JSON values
+          SYNCED_TO_CHAIN=$(echo "$WALLET_INFO" | grep -o '"synced_to_chain":[^,]*' | cut -d: -f2 | tr -d ' ' || echo "false")
+          SYNCED_TO_GRAPH=$(echo "$WALLET_INFO" | grep -o '"synced_to_graph":[^,]*' | cut -d: -f2 | tr -d ' ' || echo "false")
           
           # More robust block height extraction
           BLOCK_HEIGHT=$(echo "$WALLET_INFO" | grep -o '"block_height":[0-9]*' | cut -d: -f2 || echo "")
