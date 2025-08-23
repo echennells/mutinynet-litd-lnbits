@@ -12,8 +12,8 @@ jobs:
     strategy:
       matrix:
         litd-version: 
-          - "v0.14.1-alpha"
-          - "v0.13.99-alpha"
+          - "v0.15.2-alpha"  # Latest stable
+          - "v0.14.1-alpha"  # Previous stable
         lnbits-version:
           - "v1.2.1"
     
