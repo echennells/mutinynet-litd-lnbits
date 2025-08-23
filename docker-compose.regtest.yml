@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  # Bitcoin Core in regtest mode
+  bitcoind:
+    image: boltz/bitcoin-core:25.0
+    container_name: bitcoind-regtest
+    command:
+      - -regtest
+      - -server
+      - -rpcuser=bitcoin
+      - -rpcpassword=bitcoin
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -zmqpubrawtx=tcp://0.0.0.0:29000
+      - -zmqpubrawblock=tcp://0.0.0.0:29001
+      - -fallbackfee=0.00001
+      - -txindex
+    volumes:
+      - bitcoin-regtest-data:/home/bitcoin/.bitcoin
+    ports:
+      - "18443:18443"  # RPC
+      - "29000:29000"  # ZMQ
+      - "29001:29001"  # ZMQ
+
+  # Lightning Terminal (LND + Taproot Assets)
+  lit:
+    image: lightninglabs/lightning-terminal:${LITD_VERSION:-v0.14.1-alpha}
+    container_name: lit-regtest
+    depends_on:
+      - bitcoind
+    volumes:
+      - lit-regtest-data:/root/.lit
+      - lnd-regtest-data:/root/.lnd
+      - tapd-regtest-data:/root/.tapd
+      - ./scripts/lit-entrypoint.sh:/entrypoint.sh:ro
+    environment:
+      NETWORK: regtest
+      BITCOIN_HOST: bitcoind
+      BITCOIN_RPC_USER: bitcoin
+      BITCOIN_RPC_PASS: bitcoin
+      LIT_CONFIG: |
+        network=regtest
+        lnd-mode=integrated
+        uipassword=testpassword123
+        httpslisten=0.0.0.0:8443
+        lnd.rpclisten=0.0.0.0:10009
+        lnd.restlisten=0.0.0.0:8080
+        lnd.bitcoin.active=1
+        lnd.bitcoin.regtest=1
+        lnd.bitcoin.node=bitcoind
+        lnd.bitcoind.rpchost=bitcoind:18443
+        lnd.bitcoind.rpcuser=bitcoin
+        lnd.bitcoind.rpcpass=bitcoin
+        lnd.bitcoind.zmqpubrawblock=tcp://bitcoind:29001
+        lnd.bitcoind.zmqpubrawtx=tcp://bitcoind:29000
+        lnd.noseedbackup=true
+        taproot-assets-mode=integrated
+        taproot-assets.network=regtest
+    entrypoint: /entrypoint.sh
+    ports:
+      - "8443:8443"   # Lightning Terminal UI
+      - "10009:10009" # LND gRPC
+      - "8080:8080"   # LND REST
+      - "9735:9735"   # LND P2P
+
+  # LNbits
+  lnbits:
+    image: lnbits/lnbits:${LNBITS_VERSION:-v1.2.1}
+    container_name: lnbits-regtest
+    depends_on:
+      - lit
+    environment:
+      LNBITS_BACKEND_WALLET_CLASS: LndRestWallet
+      LND_REST_ENDPOINT: https://lit:8080
+      LND_REST_CERT: /lnd/tls.cert
+      LND_REST_MACAROON: /lnd/data/chain/bitcoin/regtest/admin.macaroon
+      LNBITS_SITE_TITLE: "Regtest LNbits"
+      LNBITS_DATA_FOLDER: /data
+    volumes:
+      - lnbits-regtest-data:/data
+      - lnd-regtest-data:/lnd:ro
+    ports:
+      - "5000:5000"
+
+volumes:
+  bitcoin-regtest-data:
+  lit-regtest-data:
+  lnd-regtest-data:
+  tapd-regtest-data:
+  lnbits-regtest-data:

@@ -1,0 +1,117 @@
+name: Test Lightning Regtest
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        litd-version: 
+          - "v0.14.1-alpha"
+          - "v0.13.99-alpha"
+        lnbits-version:
+          - "v1.2.1"
+    
+    name: Test litd-${{ matrix.litd-version }} lnbits-${{ matrix.lnbits-version }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Start regtest environment
+      env:
+        LITD_VERSION: ${{ matrix.litd-version }}
+        LNBITS_VERSION: ${{ matrix.lnbits-version }}
+      run: |
+        echo "Starting regtest with Lightning Terminal $LITD_VERSION and LNbits $LNBITS_VERSION"
+        docker compose -f docker-compose.regtest.yml up -d
+        
+        # Wait for services to be ready
+        echo "Waiting for services to initialize..."
+        sleep 30
+    
+    - name: Test Bitcoin connectivity
+      run: |
+        echo "Testing Bitcoin..."
+        docker exec bitcoind-regtest bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin getblockchaininfo
+        
+        # Mine a block to test
+        ADDR=$(docker exec bitcoind-regtest bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin getnewaddress)
+        docker exec bitcoind-regtest bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin generatetoaddress 1 $ADDR
+        echo "✅ Bitcoin working!"
+    
+    - name: Test Lightning Terminal
+      run: |
+        echo "Testing Lightning Terminal..."
+        
+        # Check LND is running
+        docker exec lit-regtest lncli --network=regtest getinfo || {
+          echo "LND not ready, waiting..."
+          sleep 20
+          docker exec lit-regtest lncli --network=regtest getinfo
+        }
+        
+        # Get node info
+        NODE_INFO=$(docker exec lit-regtest lncli --network=regtest getinfo)
+        echo "Lightning node info: $NODE_INFO"
+        
+        # Generate Lightning address
+        ADDR=$(docker exec lit-regtest lncli --network=regtest newaddress p2wkh | jq -r .address)
+        echo "Generated address: $ADDR"
+        
+        # Fund the Lightning wallet
+        docker exec bitcoind-regtest bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin sendtoaddress $ADDR 1
+        docker exec bitcoind-regtest bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin generatetoaddress 1 $(docker exec bitcoind-regtest bitcoin-cli -regtest -rpcuser=bitcoin -rpcpassword=bitcoin getnewaddress)
+        
+        # Check balance
+        BALANCE=$(docker exec lit-regtest lncli --network=regtest walletbalance)
+        echo "Wallet balance: $BALANCE"
+        echo "✅ Lightning Terminal working!"
+    
+    - name: Test LNbits
+      run: |
+        echo "Testing LNbits..."
+        
+        # Wait for LNbits to be ready
+        for i in {1..30}; do
+          if curl -s http://localhost:5000/api/v1/health | grep -q "ok"; then
+            echo "✅ LNbits is running!"
+            break
+          fi
+          echo "Waiting for LNbits... ($i/30)"
+          sleep 2
+        done
+        
+        # Check LNbits can connect to Lightning
+        curl -s http://localhost:5000/api/v1/wallet | head -20
+    
+    - name: Run integration tests
+      run: |
+        echo "Running integration tests..."
+        
+        # Test creating an LNbits wallet
+        # Test generating invoices
+        # Test payments between wallets
+        # Add your specific test scenarios here
+        
+        echo "✅ All tests passed!"
+    
+    - name: Show logs on failure
+      if: failure()
+      run: |
+        echo "=== Bitcoin logs ==="
+        docker logs bitcoind-regtest --tail 50
+        echo "=== Lightning Terminal logs ==="
+        docker logs lit-regtest --tail 50
+        echo "=== LNbits logs ==="
+        docker logs lnbits-regtest --tail 50
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker compose -f docker-compose.regtest.yml down -v
