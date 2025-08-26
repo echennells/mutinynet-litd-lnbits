@@ -21,15 +21,19 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy Bitcoin binaries from the provided tar.gz
-COPY bitcoin-d4a86277ed8a-x86_64-linux-gnu.tar.gz /tmp/
+# Download and install Bitcoin Core 29.1
+ARG BITCOIN_VERSION=29.1
+ARG ARCH=x86_64
 RUN cd /tmp && \
-    tar -xzvf bitcoin-d4a86277ed8a-x86_64-linux-gnu.tar.gz -C /usr/local/bin --strip-components=2 \
-    "bitcoin-d4a86277ed8a/bin/bitcoin-cli" \
-    "bitcoin-d4a86277ed8a/bin/bitcoind" \
-    "bitcoin-d4a86277ed8a/bin/bitcoin-wallet" \
-    "bitcoin-d4a86277ed8a/bin/bitcoin-util" && \
-    rm bitcoin-d4a86277ed8a-x86_64-linux-gnu.tar.gz
+    wget https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}/bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz && \
+    wget https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}/SHA256SUMS && \
+    grep "bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz" SHA256SUMS | sha256sum -c - && \
+    tar -xzvf bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz -C /usr/local/bin --strip-components=2 \
+    "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-cli" \
+    "bitcoin-${BITCOIN_VERSION}/bin/bitcoind" \
+    "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-wallet" \
+    "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-util" && \
+    rm bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz SHA256SUMS
 
 COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY bitcoin.conf /root/.bitcoin/bitcoin.conf

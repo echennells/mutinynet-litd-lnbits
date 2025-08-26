@@ -106,7 +106,7 @@ services:
     entrypoint: >
       sh -c "cd /app &&
       echo 'Starting LNbits service...' &&
-      poetry run lnbits --port 5000 --host 0.0.0.0"
+      uv run lnbits --port 5000 --host 0.0.0.0"
     environment:
       - LNBITS_BACKEND_WALLET_CLASS=LndRestWallet
       - LND_REST_ENDPOINT=https://lit:8080
