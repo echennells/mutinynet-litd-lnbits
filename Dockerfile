@@ -21,8 +21,8 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Download and install Bitcoin Core 29.1
-ARG BITCOIN_VERSION=29.1
+# Download and install Bitcoin Core 29.0
+ARG BITCOIN_VERSION=29.0
 ARG ARCH=x86_64
 RUN cd /tmp && \
     wget https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}/bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz && \
