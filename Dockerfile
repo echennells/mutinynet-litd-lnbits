@@ -2,7 +2,7 @@ FROM debian:bullseye-slim
 LABEL org.opencontainers.image.authors="NBD"
 LABEL org.opencontainers.image.licenses=MIT
 
-ENV BITCOIN_DIR=/root/.bitcoin
+ENV BITCOIN_DIR=/home/bitcoin/.bitcoin
 ENV RPCUSER=${RPCUSER:-"bitcoin"}
 ENV RPCPASSWORD=${RPCPASSWORD:-"bitcoin"}
 ENV ZMQPUBRAWBLOCK=${ZMQPUBRAWBLOCK:-"tcp://0.0.0.0:28332"}
@@ -15,9 +15,9 @@ ENV WHITELIST=${WHITELIST:-"0.0.0.0/0"}
 VOLUME $BITCOIN_DIR
 EXPOSE 28332 28333 28334 38332 38333 38334
 
-# Install dependencies
+# Install dependencies (removed gosu as it's not needed for non-root)
 RUN apt-get update && \
-    apt-get install -qq --no-install-recommends ca-certificates dirmngr gosu wget libc6 procps && \
+    apt-get install -qq --no-install-recommends ca-certificates dirmngr wget libc6 procps && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -35,8 +35,20 @@ RUN cd /tmp && \
     "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-util" && \
     rm bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz SHA256SUMS
 
-COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY bitcoin.conf /root/.bitcoin/bitcoin.conf
+# Create non-root user with UID/GID 1000
+RUN groupadd -r -g 1000 bitcoin && \
+    useradd -r -u 1000 -g bitcoin -m -d /home/bitcoin bitcoin
+
+# Copy files with proper ownership
+COPY --chown=bitcoin:bitcoin docker-entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chown=bitcoin:bitcoin bitcoin.conf /home/bitcoin/.bitcoin/bitcoin.conf
+
+# Make entrypoint executable
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Switch to non-root user
+USER bitcoin
+WORKDIR /home/bitcoin
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["bitcoind", "-daemonwait"]

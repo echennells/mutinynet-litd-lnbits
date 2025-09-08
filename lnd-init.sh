@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
 
-WALLET_DIR="/root/.lnd/data/chain/bitcoin/signet"
+# Use HOME environment variable or default to /home/lnd
+LND_HOME="${HOME:-/home/lnd}"
+WALLET_DIR="${LND_HOME}/.lnd/data/chain/bitcoin/signet"
 CACHE_DIR="/cache/lnd-wallet"
 
 # Check if we have cached wallet data
@@ -16,7 +18,7 @@ if [ -d "$CACHE_DIR" ] && [ -f "$CACHE_DIR/wallet.db" ]; then
   
   # Also restore password file if it exists
   if [ -f "/cache/password.txt" ]; then
-    cp "/cache/password.txt" "/root/.lnd/password.txt"
+    cp "/cache/password.txt" "${LND_HOME}/.lnd/password.txt"
   fi
   
   echo "Wallet restored from cache."
@@ -35,12 +37,15 @@ echo "Initializing new wallet..."
 # Note: lndinit doesn't support setting birthday timestamp directly
 # The wallet will use current time as birthday, which is what we want for CI
 
-/bin/lndinit gen-password > /root/.lnd/password.txt || { echo "Failed to generate password"; exit 1; }
-/bin/lndinit gen-seed > /root/.lnd/seed.txt || { echo "Failed to generate seed"; exit 1; }
+# Ensure .lnd directory exists with proper permissions
+mkdir -p "${LND_HOME}/.lnd"
+
+/bin/lndinit gen-password > ${LND_HOME}/.lnd/password.txt || { echo "Failed to generate password"; exit 1; }
+/bin/lndinit gen-seed > ${LND_HOME}/.lnd/seed.txt || { echo "Failed to generate seed"; exit 1; }
 /bin/lndinit init-wallet \
   --secret-source=file \
-  --file.seed=/root/.lnd/seed.txt \
-  --file.wallet-password=/root/.lnd/password.txt \
+  --file.seed=${LND_HOME}/.lnd/seed.txt \
+  --file.wallet-password=${LND_HOME}/.lnd/password.txt \
   --init-file.output-wallet-dir="$WALLET_DIR" \
   --init-file.validate-password || { echo "Failed to initialize wallet"; exit 1; }
 
@@ -50,6 +55,6 @@ echo "Wallet initialized successfully."
 echo "Saving wallet to cache..."
 mkdir -p "$CACHE_DIR"
 cp -r "$WALLET_DIR"/* "$CACHE_DIR/"
-cp /root/.lnd/password.txt /cache/password.txt
+cp ${LND_HOME}/.lnd/password.txt /cache/password.txt
 
 echo "Wallet cached for future runs."

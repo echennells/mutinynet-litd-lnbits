@@ -8,14 +8,15 @@ services:
   bitcoind:
     container_name: "bitcoind"
     build: .
-    user: "0:1000"
+    user: "1000:1000"
     logging: *default-logging
     restart: always
     stop_grace_period: 1m
     volumes:
-      - ~/volumes/.bitcoin:/root/.bitcoin
+      - ~/volumes/.bitcoin:/home/bitcoin/.bitcoin
     environment:
       RPCPASSWORD: bitcoin
+      BITCOIN_DIR: /home/bitcoin/.bitcoin
     ports:
       - "28332:28332"
       - "28333:28333"
@@ -27,25 +28,32 @@ services:
   lit-init:
     container_name: "lit-init"
     image: lightninglabs/lndinit:v0.1.23-beta-lnd-v0.18.5-beta
+    user: "1000:1000"
     volumes:
       - ./lnd-init.sh:/usr/local/bin/lnd-init.sh:ro
-      - ~/volumes/.lnd:/root/.lnd
+      - ~/volumes/.lnd:/home/lnd/.lnd
     environment:
-      WALLET_DIR: "/root/.lnd/data/chain/bitcoin/signet"
+      WALLET_DIR: "/home/lnd/.lnd/data/chain/bitcoin/signet"
+      HOME: /home/lnd
     entrypoint: ""
     command: ["/bin/bash", "/usr/local/bin/lnd-init.sh"]
 
   lit:
     container_name: "lit"
     image: lightninglabs/lightning-terminal:v0.14.1-alpha
+    user: "1000:1000"
     depends_on:
       - bitcoind
       - lit-init
     volumes:
-      - ~/volumes/.lit:/root/.lit
-      - ~/volumes/.lnd:/root/.lnd
-      - ~/volumes/.tapd:/root/.tapd
+      - ~/volumes/.lit:/home/lnd/.lit
+      - ~/volumes/.lnd:/home/lnd/.lnd
+      - ~/volumes/.tapd:/home/lnd/.tapd
+      - ~/volumes/.faraday:/home/lnd/.faraday
+      - ~/volumes/.loop:/home/lnd/.loop
+      - ~/volumes/.pool:/home/lnd/.pool
     environment:
+      HOME: /home/lnd
       LIT_CONFIG: |
         network=signet
         lnd-mode=integrated
@@ -64,7 +72,7 @@ services:
         lnd.bitcoind.zmqpubrawblock=tcp://bitcoind:28332
         lnd.bitcoind.zmqpubrawtx=tcp://bitcoind:28333
         lnd.rpcmiddleware.enable=true
-        lnd.wallet-unlock-password-file=/root/.lnd/password.txt
+        lnd.wallet-unlock-password-file=/home/lnd/.lnd/password.txt
         lnd.listen=0.0.0.0:9735
         lnd.externalip=${EXTERNAL_IP}:9735
         taproot-assets-mode=integrated
@@ -87,39 +95,10 @@ services:
         taproot-assets.experimental.rfq.priceoracleaddress=use_mock_price_oracle_service_promise_to_not_use_on_mainnet
         taproot-assets.experimental.rfq.mockoracleassetsperbtc=100000
     entrypoint: >
-      sh -c "echo \"$$LIT_CONFIG\" > /root/.lit/lit.conf && litd"
+      sh -c "mkdir -p /home/lnd/.lit && echo \"$$LIT_CONFIG\" > /home/lnd/.lit/lit.conf && litd"
     ports:
       - "8443:8443"
       - "10009:10009"
       - "9735:9735"
       - "8080:8080"
       - "10029:10029"  # tapd RPC port
-
-  lnbits:
-    container_name: "lnbits"
-    build:
-      context: /home/ubuntu/lnbits
-      dockerfile: Dockerfile
-    volumes:
-      - ~/volumes/.lnd:/root/.lnd:ro
-      - ~/volumes/.tapd:/root/.tapd:ro
-    entrypoint: >
-      sh -c "cd /app &&
-      echo 'Starting LNbits service...' &&
-      uv run lnbits --port 5000 --host 0.0.0.0"
-    environment:
-      - LNBITS_BACKEND_WALLET_CLASS=LndRestWallet
-      - LND_REST_ENDPOINT=https://lit:8080
-      - LND_REST_CERT=/root/.lnd/tls.cert
-      - LND_REST_MACAROON=/root/.lnd/data/chain/bitcoin/signet/admin.macaroon
-      - LNBITS_NETWORK=signet
-      - LNBITS_SITE_TITLE=MutinyNet LNBits
-      - LNBITS_BASEURL=http://127.0.0.1:5000
-      - TAPD_HOST=lit:10009
-      - TAPD_NETWORK=signet
-      - TAPD_TLS_CERT_PATH=/root/.lnd/tls.cert
-      - TAPD_MACAROON_PATH=/root/.tapd/data/signet/admin.macaroon
-    ports:
-      - "5000:5000"
-    depends_on:
-      - lit
