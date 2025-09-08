@@ -1,0 +1,37 @@
+version: '3.8'
+
+# This override file ensures volumes are created with correct permissions
+# It uses a temporary init container that runs as root to fix permissions
+
+services:
+  volume-init:
+    image: busybox
+    user: root
+    command: |
+      sh -c "
+        echo 'Setting up volume permissions...'
+        mkdir -p /volumes/.bitcoin /volumes/.lnd /volumes/.lit /volumes/.tapd /volumes/.faraday /volumes/.loop /volumes/.pool
+        chown -R 1000:1000 /volumes
+        echo 'Volume permissions fixed'
+      "
+    volumes:
+      - ~/volumes:/volumes
+
+  bitcoind:
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+
+  lit-init:
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+
+  lit:
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+      bitcoind:
+        condition: service_started
+      lit-init:
+        condition: service_completed_successfully
