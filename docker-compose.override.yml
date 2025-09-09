@@ -9,10 +9,17 @@ services:
     user: root
     command: |
       sh -c "
-        echo 'Setting up volume permissions...'
-        mkdir -p /volumes/.bitcoin /volumes/.lnd /volumes/.lit /volumes/.tapd /volumes/.faraday /volumes/.loop /volumes/.pool
-        chown -R 1000:1000 /volumes
-        echo 'Volume permissions fixed'
+        echo 'Checking volume directories...'
+        for dir in .bitcoin .lnd .lit .tapd .faraday .loop .pool; do
+          if [ ! -d /volumes/\$dir ]; then
+            echo \"Creating /volumes/\$dir with proper ownership\"
+            mkdir -p /volumes/\$dir
+            chown 1000:1000 /volumes/\$dir
+          else
+            echo \"/volumes/\$dir already exists, preserving existing permissions\"
+          fi
+        done
+        echo 'Volume check complete'
       "
     volumes:
       - ~/volumes:/volumes
