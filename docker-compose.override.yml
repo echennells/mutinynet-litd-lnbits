@@ -8,19 +8,19 @@ services:
     image: busybox
     user: root
     command: |
-      sh -c "
-        echo 'Checking volume directories...'
+      sh -c '
+        echo "Checking volume directories..."
         for dir in .bitcoin .lnd .lit .tapd .faraday .loop .pool; do
-          if [ ! -d /volumes/\$dir ]; then
-            echo \"Creating /volumes/\$dir with proper ownership\"
-            mkdir -p /volumes/\$dir
-            chown 1000:1000 /volumes/\$dir
+          if [ ! -d /volumes/$$dir ]; then
+            echo "Creating /volumes/$$dir with proper ownership"
+            mkdir -p /volumes/$$dir
+            chown 1000:1000 /volumes/$$dir
           else
-            echo \"/volumes/\$dir already exists, preserving existing permissions\"
+            echo "/volumes/$$dir already exists, preserving existing permissions"
           fi
         done
-        echo 'Volume check complete'
-      "
+        echo "Volume check complete"
+      '
     volumes:
       - ~/volumes:/volumes
 
