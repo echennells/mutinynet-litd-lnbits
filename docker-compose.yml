@@ -7,7 +7,11 @@ x-logging:
 services:
   bitcoind:
     container_name: "bitcoind"
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SIGNET_TYPE: ${SIGNET_TYPE:-signet}
     user: "1000:1000"
     logging: *default-logging
     restart: always
@@ -17,6 +21,7 @@ services:
     environment:
       RPCPASSWORD: bitcoin
       BITCOIN_DIR: /home/bitcoin/.bitcoin
+      SIGNET_TYPE: ${SIGNET_TYPE:-signet}
     ports:
       - "28332:28332"
       - "28333:28333"

@@ -21,19 +21,52 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Download and install Bitcoin Core 29.0
-ARG BITCOIN_VERSION=29.0
-ARG ARCH=x86_64
-RUN cd /tmp && \
-    wget https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}/bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz && \
-    wget https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}/SHA256SUMS && \
-    grep "bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz" SHA256SUMS | sha256sum -c - && \
-    tar -xzvf bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz -C /usr/local/bin --strip-components=2 \
-    "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-cli" \
-    "bitcoin-${BITCOIN_VERSION}/bin/bitcoind" \
-    "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-wallet" \
-    "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-util" && \
-    rm bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz SHA256SUMS
+# Download and install Bitcoin Core
+# Supports both normal signet and Mutinynet (30-second blocks)
+ARG SIGNET_TYPE=signet
+ARG TARGETPLATFORM
+
+RUN set -ex && \
+    if [ "$SIGNET_TYPE" = "mutinynet" ]; then \
+        echo "Installing custom Mutinynet Bitcoin build with 30-second blocks" && \
+        BITCOIN_VERSION="d4a86277ed8a" && \
+        case "$TARGETPLATFORM" in \
+            "linux/amd64") TRIPLET="x86_64-linux-gnu" ;; \
+            "linux/arm64") TRIPLET="aarch64-linux-gnu" ;; \
+            "linux/arm/v7") TRIPLET="arm-linux-gnueabihf" ;; \
+            *) echo "Unsupported platform: $TARGETPLATFORM" >&2; exit 1 ;; \
+        esac && \
+        cd /tmp && \
+        wget https://github.com/benthecarman/bitcoin/releases/download/paircommit/bitcoin-${BITCOIN_VERSION}-${TRIPLET}.tar.gz && \
+        tar -xzvf bitcoin-${BITCOIN_VERSION}-${TRIPLET}.tar.gz -C /usr/local/bin --strip-components=2 \
+        "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-cli" \
+        "bitcoin-${BITCOIN_VERSION}/bin/bitcoind" \
+        "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-wallet" \
+        "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-util" && \
+        rm bitcoin-${BITCOIN_VERSION}-${TRIPLET}.tar.gz; \
+    else \
+        echo "Installing standard Bitcoin Core 29.0 for normal signet" && \
+        BITCOIN_VERSION="29.0" && \
+        case "$TARGETPLATFORM" in \
+            "linux/amd64") ARCH="x86_64" ;; \
+            "linux/arm64") ARCH="aarch64" ;; \
+            "linux/arm/v7") ARCH="arm" ;; \
+            *) echo "Unsupported platform: $TARGETPLATFORM" >&2; exit 1 ;; \
+        esac && \
+        cd /tmp && \
+        wget https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}/bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz && \
+        wget https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}/SHA256SUMS && \
+        grep "bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz" SHA256SUMS | sha256sum -c - && \
+        tar -xzvf bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz -C /usr/local/bin --strip-components=2 \
+        "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-cli" \
+        "bitcoin-${BITCOIN_VERSION}/bin/bitcoind" \
+        "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-wallet" \
+        "bitcoin-${BITCOIN_VERSION}/bin/bitcoin-util" && \
+        rm bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz SHA256SUMS; \
+    fi
+
+# Set SIGNET_TYPE as environment variable for runtime
+ENV SIGNET_TYPE=${SIGNET_TYPE}
 
 # Create non-root user with UID/GID 1000
 RUN groupadd -r -g 1000 bitcoin && \
