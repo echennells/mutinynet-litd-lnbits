@@ -1,0 +1,39 @@
+# Tor overlay configuration for Lightning Terminal
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.tor.yml up
+
+services:
+  tor:
+    container_name: "tor"
+    image: lncm/tor:latest
+    user: "1000:1000"
+    restart: unless-stopped
+    volumes:
+      - ~/volumes/.tor:/home/tor/.tor
+      - ./torrc:/etc/tor/torrc:ro
+    environment:
+      HOME: /home/tor
+    ports:
+      - "9050:9050"  # SOCKS proxy port
+      - "9051:9051"  # Control port
+    networks:
+      - default
+
+  lit:
+    depends_on:
+      - bitcoind
+      - lit-init
+      - tor
+    volumes:
+      - ~/volumes/.lit:/home/lnd/.lit
+      - ~/volumes/.lnd:/home/lnd/.lnd
+      - ~/volumes/.tapd:/home/lnd/.tapd
+      - ~/volumes/.faraday:/home/lnd/.faraday
+      - ~/volumes/.loop:/home/lnd/.loop
+      - ~/volumes/.pool:/home/lnd/.pool
+      - ~/volumes/.tor:/home/tor/.tor:ro
+      - ./lit-entrypoint.sh:/lit-entrypoint.sh:ro
+    environment:
+      HOME: /home/lnd
+      EXTERNAL_IP: ${EXTERNAL_IP}
+      NETWORK: ${NETWORK:-signet}
+    entrypoint: /lit-entrypoint.sh

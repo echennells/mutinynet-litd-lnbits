@@ -1,0 +1,43 @@
+# Tor configuration for Lightning Terminal
+
+# SOCKS proxy - listen on all interfaces (required for Docker container communication)
+# Security: Docker network isolation + SocksPolicy below restricts access
+SocksPort 0.0.0.0:9050
+
+# Control port for LND (with authentication)
+# Security: Docker network isolation + Cookie authentication required
+ControlPort 0.0.0.0:9051
+CookieAuthentication 1
+
+# Allow connections from Docker network
+SocksPolicy accept 172.16.0.0/12
+SocksPolicy accept 10.0.0.0/8
+SocksPolicy accept 192.168.0.0/16
+SocksPolicy reject *
+
+# Performance tuning
+AvoidDiskWrites 1
+DisableDebuggerAttachment 0
+
+# Hidden service for Lightning (LND)
+HiddenServiceDir /home/tor/.tor/lnd/
+HiddenServiceVersion 3
+HiddenServicePort 9735 host.docker.internal:9735
+HiddenServicePort 8080 host.docker.internal:8080
+HiddenServicePort 10009 host.docker.internal:10009
+
+# Hidden service for Lightning Terminal Web UI
+HiddenServiceDir /home/tor/.tor/lit-ui/
+HiddenServiceVersion 3
+HiddenServicePort 8443 host.docker.internal:8443
+
+# Hidden service for LNbits (if exposed)
+HiddenServiceDir /home/tor/.tor/lnbits/
+HiddenServiceVersion 3
+HiddenServicePort 80 host.docker.internal:5000
+
+# Logging
+Log notice stdout
+
+# Data directory
+DataDirectory /home/tor/.tor
