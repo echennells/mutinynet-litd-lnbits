@@ -19,22 +19,8 @@ SocksPolicy reject *
 AvoidDiskWrites 1
 DisableDebuggerAttachment 0
 
-# Hidden service for Lightning (LND)
-HiddenServiceDir /home/tor/.tor/lnd/
-HiddenServiceVersion 3
-HiddenServicePort 9735 host.docker.internal:9735
-HiddenServicePort 8080 host.docker.internal:8080
-HiddenServicePort 10009 host.docker.internal:10009
-
-# Hidden service for Lightning Terminal Web UI
-HiddenServiceDir /home/tor/.tor/lit-ui/
-HiddenServiceVersion 3
-HiddenServicePort 8443 host.docker.internal:8443
-
-# Hidden service for LNbits (if exposed)
-HiddenServiceDir /home/tor/.tor/lnbits/
-HiddenServiceVersion 3
-HiddenServicePort 80 host.docker.internal:5000
+# Hidden services will be created dynamically by LND via Tor control protocol
+# This avoids the chicken-and-egg problem of referencing containers that don't exist yet
 
 # Logging
 Log notice stdout
