@@ -1,5 +1,3 @@
-version: '3.8'
-
 # This override file ensures volumes are created with correct permissions
 # It uses a temporary init container that runs as root to fix permissions
 
@@ -10,13 +8,20 @@ services:
     command: |
       sh -c '
         echo "Checking volume directories..."
-        for dir in .bitcoin .lnd .lit .tapd .faraday .loop .pool; do
+        for dir in .bitcoin .lnd .lit .tapd .faraday .loop .pool .tor; do
           if [ ! -d /volumes/$$dir ]; then
             echo "Creating /volumes/$$dir with proper ownership"
             mkdir -p /volumes/$$dir
             chown 1000:1000 /volumes/$$dir
           else
-            echo "/volumes/$$dir already exists, preserving existing permissions"
+            echo "/volumes/$$dir already exists, checking ownership..."
+            current_owner=$$(stat -c "%u:%g" /volumes/$$dir)
+            if [ "$$current_owner" != "1000:1000" ]; then
+              echo "Fixing ownership of /volumes/$$dir from $$current_owner to 1000:1000"
+              chown 1000:1000 /volumes/$$dir
+            else
+              echo "/volumes/$$dir has correct ownership (1000:1000)"
+            fi
           fi
         done
         echo "Volume check complete"

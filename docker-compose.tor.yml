@@ -2,20 +2,13 @@
 # Use with: docker-compose -f docker-compose.yml -f docker-compose.tor.yml up
 
 services:
-  tor-init:
-    container_name: "tor-init"
-    image: alpine:latest
-    volumes:
-      - ~/volumes/.tor:/tor-data
-    command: sh -c "mkdir -p /tor-data && chown 1000:1000 /tor-data"
+  # Note: volume-init from docker-compose.override.yml handles .tor directory creation
 
   tor:
     container_name: "tor"
     image: lncm/tor:latest
     user: "1000:1000"
     restart: unless-stopped
-    depends_on:
-      - tor-init
     volumes:
       - ~/volumes/.tor:/home/tor/.tor
       - ./torrc:/etc/tor/torrc:ro
