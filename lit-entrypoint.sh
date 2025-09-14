@@ -23,7 +23,17 @@ lnd.bitcoind.zmqpubrawblock=tcp://bitcoind:28332
 lnd.bitcoind.zmqpubrawtx=tcp://bitcoind:28333
 lnd.rpcmiddleware.enable=true
 lnd.wallet-unlock-password-file=/home/lnd/.lnd/password.txt
-lnd.listen=0.0.0.0:9735
+lnd.listen=0.0.0.0:9735"
+
+# Add external IP only if EXTERNAL_IP is set
+if [ -n "$EXTERNAL_IP" ]; then
+    LIT_CONFIG="$LIT_CONFIG
+lnd.externalip=$EXTERNAL_IP:9735"
+fi
+
+# Add Tor configuration only if tor container is reachable
+if nc -z tor 9050 2>/dev/null; then
+    LIT_CONFIG="$LIT_CONFIG
 
 # Tor configuration
 lnd.tor.active=true
@@ -31,11 +41,6 @@ lnd.tor.socks=tor:9050
 lnd.tor.control=tor:9051
 lnd.tor.v3=true
 lnd.tor.skip-proxy-for-clearnet-targets=false"
-
-# Add external IP only if EXTERNAL_IP is set
-if [ -n "$EXTERNAL_IP" ]; then
-    LIT_CONFIG="$LIT_CONFIG
-lnd.externalip=$EXTERNAL_IP:9735"
 fi
 
 # Add Taproot Assets configuration

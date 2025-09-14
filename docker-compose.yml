@@ -57,53 +57,43 @@ services:
       - ~/volumes/.faraday:/home/lnd/.faraday
       - ~/volumes/.loop:/home/lnd/.loop
       - ~/volumes/.pool:/home/lnd/.pool
+      - ./lit-entrypoint.sh:/lit-entrypoint.sh:ro
     environment:
       HOME: /home/lnd
-      LIT_CONFIG: |
-        network=signet
-        lnd-mode=integrated
-        uipassword=your_secure_password
-        httpslisten=0.0.0.0:8443
-        autopilot.disable=true
-        lnd.rpclisten=0.0.0.0:10009
-        lnd.restlisten=0.0.0.0:8080
-        lnd.tlsextradomain=lit
-        lnd.bitcoin.active=1
-        lnd.bitcoin.node=bitcoind
-        lnd.bitcoin.signet=1
-        lnd.bitcoind.rpchost=bitcoind:38332
-        lnd.bitcoind.rpcuser=bitcoin
-        lnd.bitcoind.rpcpass=bitcoin
-        lnd.bitcoind.zmqpubrawblock=tcp://bitcoind:28332
-        lnd.bitcoind.zmqpubrawtx=tcp://bitcoind:28333
-        lnd.rpcmiddleware.enable=true
-        lnd.wallet-unlock-password-file=/home/lnd/.lnd/password.txt
-        lnd.listen=0.0.0.0:9735
-        lnd.externalip=${EXTERNAL_IP}:9735
-        taproot-assets-mode=integrated
-        taproot-assets.network=signet
-        taproot-assets.rpclisten=0.0.0.0:10029
-        taproot-assets.lnd.host=localhost:10029
-        taproot-assets.universe.federationserver=universe.signet.laisee.org:8443
-        taproot-assets.universe.no-default-federation=true
-        taproot-assets.universe.sync-all-assets=true
-        taproot-assets.universe.public-access=rw
-        taproot-assets.proofcourieraddr=universerpc://universe.signet.laisee.org:8443
-        # Taproot Assets Lightning config
-        lnd.protocol.option-scid-alias=true
-        lnd.protocol.zero-conf=true
-        lnd.protocol.simple-taproot-chans=true
-        lnd.protocol.simple-taproot-overlay-chans=true
-        lnd.protocol.custom-message=17
-        lnd.accept-keysend=true
-        # Mock price oracle settings for RFQ
-        taproot-assets.experimental.rfq.priceoracleaddress=use_mock_price_oracle_service_promise_to_not_use_on_mainnet
-        taproot-assets.experimental.rfq.mockoracleassetsperbtc=100000
-    entrypoint: >
-      sh -c "mkdir -p /home/lnd/.lit && echo \"$$LIT_CONFIG\" > /home/lnd/.lit/lit.conf && litd"
+      EXTERNAL_IP: ${EXTERNAL_IP}
+      NETWORK: ${NETWORK:-signet}
+    entrypoint: /lit-entrypoint.sh
     ports:
       - "8443:8443"
       - "10009:10009"
       - "9735:9735"
       - "8080:8080"
       - "10029:10029"  # tapd RPC port
+
+  lnbits:
+    container_name: "lnbits"
+    image: lnbits/lnbits:v1.2.1
+    depends_on:
+      - lit
+    environment:
+      LNBITS_BACKEND_WALLET_CLASS: LndRestWallet
+      LND_REST_ENDPOINT: https://lit:8080
+      LND_REST_CERT: /app/.lnd/tls.cert
+      LND_REST_MACAROON: /app/.lnd/data/chain/bitcoin/signet/admin.macaroon
+      LNBITS_SITE_TITLE: "Mutinynet LNbits"
+      LNBITS_SITE_TAGLINE: "Lightning on Mutinynet Signet"
+      LNBITS_DATA_FOLDER: /app/data
+      LNBITS_NETWORK: signet
+      LNBITS_BASEURL: http://127.0.0.1:5000
+      # Taproot Assets configuration
+      TAPD_HOST: lit
+      TAPD_PORT: 10009
+      TAPD_NETWORK: signet
+      TAPD_TLS_CERT_PATH: /app/.lnd/tls.cert
+      TAPD_MACAROON_PATH: /app/.tapd/data/signet/admin.macaroon
+    volumes:
+      - ~/volumes/.lnbits:/app/data
+      - ~/volumes/.lnd:/app/.lnd:ro
+      - ~/volumes/.tapd:/app/.tapd:ro
+    ports:
+      - "5000:5000"
