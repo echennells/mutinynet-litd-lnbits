@@ -33,6 +33,9 @@ fi
 
 # Add Tor configuration only if tor container is reachable
 if nc -z tor 9050 2>/dev/null; then
+    # Export cookie for LND to use
+    export TOR_CONTROL_PASSWD=$(xxd -p -c 32 /home/tor/.tor/control_auth_cookie)
+
     LIT_CONFIG="$LIT_CONFIG
 
 # Tor configuration
