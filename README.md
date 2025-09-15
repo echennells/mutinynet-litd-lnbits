@@ -1,3 +1,45 @@
+# Mutinynet Lightning Terminal + LNbits
+
+This repository provides a complete Lightning Network stack running on Mutinynet (custom signet) with Taproot Assets support.
+
+## Quick Start
+
+### 1. Clone and Setup
+```bash
+git clone https://github.com/echennells/mutinynet-litd-lnbits.git
+cd mutinynet-litd-lnbits
+./setup.sh
+```
+
+### 2. Start the Stack
+```bash
+# With Tor support (recommended)
+ENABLE_TOR=true ./start.sh
+
+# Or without Tor
+./start.sh
+```
+
+### 3. Access Services
+- **Lightning Terminal**: https://localhost:8443 (password: `your_secure_password`)
+- **LNbits**: http://localhost:5000
+- **Bitcoin RPC**: localhost:38332 (user: `bitcoin`, pass: `bitcoin`)
+
+## What's Included
+
+- **Bitcoin Core** (custom build for Mutinynet)
+- **Lightning Terminal** (LND + Loop + Pool + Faraday + Taproot Assets)
+- **LNbits** (Lightning wallet/payment processor)
+- **Tor** (for privacy and P2P connectivity)
+
+## Security Improvements
+
+- **Non-root containers**: LNbits runs as user 1000 instead of root
+- **Updated Tor**: Uses Tor 0.4.8.14 instead of outdated 0.4.7.13
+- **Custom images**: Built from source for better security
+
+---
+
 # Taproot Assets Protocol Command Reference Guide
 
 ## Minting a Taproot Asset - Complete Workflow
