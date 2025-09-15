@@ -29,22 +29,27 @@ docker build -f Dockerfile.tor -t tor-updated:latest .
 
 echo "✓ Custom Tor image built"
 
-# Clone LNbits source for custom build
-if [ ! -d "~/lnbits-custom" ]; then
+# Clone or update LNbits source for custom build
+if [ ! -d "$HOME/lnbits-custom" ]; then
     echo "Cloning LNbits source..."
-    git clone https://github.com/lnbits/lnbits.git ~/lnbits-custom
-    cd ~/lnbits-custom
+    git clone https://github.com/lnbits/lnbits.git "$HOME/lnbits-custom"
+    cd "$HOME/lnbits-custom"
     git checkout v1.2.1
     cd - > /dev/null
     echo "✓ LNbits source cloned"
 else
-    echo "✓ LNbits source already exists"
+    echo "Updating LNbits source..."
+    cd "$HOME/lnbits-custom"
+    git fetch
+    git checkout v1.2.1
+    cd - > /dev/null
+    echo "✓ LNbits source updated"
 fi
 
 # Build custom LNbits image (non-root)
 echo "Building custom LNbits image (non-root)..."
-cd ~/lnbits-custom
-docker build -f $(pwd)/../mutinynet-litd-lnbits/Dockerfile.lnbits -t lnbits-nonroot:v1.2.1 .
+cd "$HOME/lnbits-custom"
+docker build -f "$(dirname "$0")/Dockerfile.lnbits" -t lnbits-nonroot:v1.2.1 .
 cd - > /dev/null
 
 echo "✓ Custom LNbits image built"
