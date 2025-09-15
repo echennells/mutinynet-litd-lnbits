@@ -72,7 +72,8 @@ services:
 
   lnbits:
     container_name: "lnbits"
-    image: lnbits/lnbits:v1.2.1
+    image: lnbits-nonroot:v1.2.1
+    user: "1000:1000"
     depends_on:
       - lit
     environment:

@@ -6,7 +6,7 @@ services:
 
   tor:
     container_name: "tor"
-    image: lncm/tor:latest
+    image: tor-updated:latest
     user: "1000:1000"
     restart: unless-stopped
     volumes:

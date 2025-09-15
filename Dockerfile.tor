@@ -1,0 +1,33 @@
+FROM alpine:3.20
+
+# Install dependencies
+RUN apk add --no-cache \
+    tor \
+    su-exec \
+    tini
+
+# Create tor user
+RUN addgroup -g 1000 toruser && \
+    adduser -u 1000 -G toruser -s /bin/sh -D toruser
+
+# Create directories with correct ownership
+RUN mkdir -p /home/tor/.tor && \
+    chown -R toruser:toruser /home/tor/.tor
+
+# Copy default torrc if needed
+COPY torrc /etc/tor/torrc
+
+# Switch to tor user
+USER toruser
+
+# Set working directory
+WORKDIR /home/tor
+
+# Expose ports
+EXPOSE 9050 9051
+
+# Use tini as init system
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# Start tor
+CMD ["tor", "-f", "/etc/tor/torrc"]
