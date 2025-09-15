@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Store the script's directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 echo "=== Mutinynet LiT + LNbits Setup ==="
 
 # Check if Docker is installed
@@ -25,7 +28,7 @@ echo "✓ Volume directories created"
 
 # Build custom Tor image with updated version
 echo "Building custom Tor image (0.4.8.14)..."
-docker build -f Dockerfile.tor -t tor-updated:latest .
+docker build -f "$SCRIPT_DIR/Dockerfile.tor" -t tor-updated:latest "$SCRIPT_DIR"
 
 echo "✓ Custom Tor image built"
 
@@ -49,7 +52,7 @@ fi
 # Build custom LNbits image (non-root)
 echo "Building custom LNbits image (non-root)..."
 cd "$HOME/lnbits-custom"
-docker build -f "$(dirname "$0")/Dockerfile.lnbits" -t lnbits-nonroot:v1.2.1 .
+docker build -f "$SCRIPT_DIR/Dockerfile.lnbits" -t lnbits-nonroot:v1.2.1 .
 cd - > /dev/null
 
 echo "✓ Custom LNbits image built"
