@@ -53,12 +53,25 @@ LIT_CONFIG="$LIT_CONFIG
 taproot-assets-mode=integrated
 taproot-assets.network=$NETWORK_TYPE
 taproot-assets.rpclisten=0.0.0.0:10029
-taproot-assets.lnd.host=localhost:10029
+taproot-assets.lnd.host=localhost:10029"
+
+# Only add universe federation for regular signet, not mutinynet
+if [ "${SIGNET_TYPE:-signet}" = "signet" ]; then
+    # Regular signet - use laisee universe server
+    LIT_CONFIG="$LIT_CONFIG
 taproot-assets.universe.federationserver=universe.signet.laisee.org:8443
 taproot-assets.universe.no-default-federation=true
 taproot-assets.universe.sync-all-assets=true
 taproot-assets.universe.public-access=rw
-taproot-assets.proofcourieraddr=universerpc://universe.signet.laisee.org:8443
+taproot-assets.proofcourieraddr=universerpc://universe.signet.laisee.org:8443"
+else
+    # Mutinynet - don't use laisee federation server
+    LIT_CONFIG="$LIT_CONFIG
+taproot-assets.universe.no-default-federation=true
+taproot-assets.universe.public-access=rw"
+fi
+
+LIT_CONFIG="$LIT_CONFIG
 
 # Taproot Assets Lightning config
 lnd.protocol.option-scid-alias=true

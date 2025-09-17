@@ -62,6 +62,7 @@ services:
       HOME: /home/lnd
       EXTERNAL_IP: ${EXTERNAL_IP}
       NETWORK: ${NETWORK:-signet}
+      SIGNET_TYPE: ${SIGNET_TYPE:-signet}
     entrypoint: /lit-entrypoint.sh
     ports:
       - "8443:8443"
@@ -72,7 +73,10 @@ services:
 
   lnbits:
     container_name: "lnbits"
-    image: lnbits-nonroot:v1.2.1
+    build:
+      context: ${LNBITS_SRC_PATH:-../lnbits-custom}
+      dockerfile: ${PWD}/Dockerfile.lnbits
+    image: lnbits-taproot:latest
     user: "1000:1000"
     depends_on:
       - lit
