@@ -73,10 +73,7 @@ services:
 
   lnbits:
     container_name: "lnbits"
-    build:
-      context: ${LNBITS_SRC_PATH:-../lnbits-custom}
-      dockerfile: ${PWD}/Dockerfile.lnbits
-    image: lnbits-taproot:latest
+    image: lnbits-nonroot:v1.2.1
     user: "1000:1000"
     depends_on:
       - lit
