@@ -88,8 +88,7 @@ services:
       LNBITS_NETWORK: signet
       LNBITS_BASEURL: http://127.0.0.1:5000
       # Taproot Assets configuration
-      TAPD_HOST: lit
-      TAPD_PORT: 10009
+      TAPD_HOST: lit:10009
       TAPD_NETWORK: signet
       TAPD_TLS_CERT_PATH: /app/.lnd/tls.cert
       TAPD_MACAROON_PATH: /app/.tapd/data/signet/admin.macaroon
