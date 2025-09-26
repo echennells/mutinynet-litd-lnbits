@@ -37,14 +37,14 @@ if [ ! -d "$HOME/lnbits-custom" ]; then
     echo "Cloning LNbits source..."
     git clone https://github.com/lnbits/lnbits.git "$HOME/lnbits-custom"
     cd "$HOME/lnbits-custom"
-    git checkout v1.2.1
+    git checkout v1.3.0-rc8
     cd - > /dev/null
     echo "✓ LNbits source cloned"
 else
     echo "Updating LNbits source..."
     cd "$HOME/lnbits-custom"
     git fetch
-    git checkout v1.2.1
+    git checkout v1.3.0-rc8
     cd - > /dev/null
     echo "✓ LNbits source updated"
 fi
@@ -52,7 +52,7 @@ fi
 # Build custom LNbits image (non-root)
 echo "Building custom LNbits image (non-root)..."
 cd "$HOME/lnbits-custom"
-docker build -f "$SCRIPT_DIR/Dockerfile.lnbits" -t lnbits-nonroot:v1.2.1 .
+docker build -f "$SCRIPT_DIR/Dockerfile.lnbits" -t lnbits-nonroot:v1.3.0-rc8 .
 cd - > /dev/null
 
 echo "✓ Custom LNbits image built"
@@ -80,4 +80,4 @@ echo "  - Bitcoin RPC: localhost:38332 (user: bitcoin, pass: bitcoin)"
 echo ""
 echo "Images built:"
 echo "  - tor-updated:latest (Tor 0.4.8.14)"
-echo "  - lnbits-nonroot:v1.2.1 (runs as user 1000)"
+echo "  - lnbits-nonroot:v1.3.0-rc8 (runs as user 1000)"
