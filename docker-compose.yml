@@ -87,6 +87,7 @@ services:
       LNBITS_DATA_FOLDER: /app/data
       LNBITS_NETWORK: signet
       LNBITS_BASEURL: http://127.0.0.1:5000
+      DEBUG: "true"
       # Taproot Assets configuration
       TAPD_HOST: lit:10009
       TAPD_NETWORK: signet
